@@ -1,0 +1,11 @@
+.vscode/*
+build/*
+build/esp-idf/esp_hw_support/CMakeFiles/*
+sdkconfig.defaults
+main/test.txt
+sdkconfig.defaults.esp32
+sdkconfig.defaults.esp32c3
+sdkconfig.defaults.esp32s3
+sdkconfig.old
+main/component.mk
+bleSdk.js

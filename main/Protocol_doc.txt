@@ -1,0 +1,199 @@
+Version 1.0.5
+1.通讯与主题
+    1.1公用主题
+		public
+	1.2网关专用主题
+		1.2.1上行发布publish
+			up_设备mac字符串, 例:up_13ac9b65e7f1
+			
+			所有上行数据都通过这个主题，具体内容通过上行的数据体封装。
+		1.2.2下行订阅subscribe
+			down_设备mac字符串, 例:down_13ac9b65e7f1
+			所有下行数据都通过这个主题，具体内容通过数据体payload封装。
+	1.3通讯质量配置
+		
+		根据实际情况安排Qos和命令保留，默认：
+		Qos:1
+		retain:true
+2.命令定义
+	
+	2.1时间同步
+		专用topic
+		2.1.1上行发布
+			{
+				command:0,
+				version:v
+			}
+				v: 整数版本号
+		2.1.2订阅下行
+			data={
+				command:0,
+				data:{
+					timestamp:n
+				}
+			}
+				n: 秒s
+	2.2同步子设备
+		专用topic
+		2.2.1上行发布
+			{
+				command:1,
+				version:v
+			}
+				v: 整数版本号
+		2.2.2订阅下行
+			{
+				command:1,
+				data:[
+					{
+						sn:sn
+					},
+					{
+						sn:sn
+					}
+					...
+				],
+				timestamp:m
+			}
+				m: 服务器时间戳ms
+				sn:设备串号
+	2.3远程升级
+		专用/公用topic
+		2.3.1订阅下行
+			{
+				command:2,
+				data:{
+					version:v,
+					url:u
+				}
+			}
+				u: 服务器文件地址,例如:http://xxx.xx.com/file/ver12345.bin
+				v: 最新的整数版本号
+			可结合版本号判断是否升级等操作
+	2.4命令下发
+		专用topic
+		2.4.1订阅下行
+			{
+				command:3,
+				data:{
+					sub_command:n,
+					command_id:m,
+					device_sn:s,
+					respone:r,
+					reserve: {
+					}
+				}
+			}
+				n: 	0=远程开锁,reserve={},
+					1=密码下发,reserve={
+							passwd:6位数字密码,
+							start_time:ts,
+							end_time:ts,
+							pos:pos
+						}
+					2=临时密码下发,reserve={
+							passwd:6位数字密码
+						}
+					3=发卡,reserve={
+							number:6位hex密码字符串内容,
+							start_time:ts,
+							end_time:ts,
+							pos:pos
+						}
+						pos=用户位置
+						ts=时间戳秒
+					4=删除密码用户,reserve={
+							pos:pos
+						}
+						pos=用户位置
+					5=删除卡用户,reserve={
+							pos:pos
+						}
+						pos=用户位置
+				r: 0=不需要回复,1=需要回复
+				m: 整数命令id
+				s: 设备串号
+		2.4.2上行发布
+			如果下行的命令respone=1
+			{
+				command:3,
+				data:{
+					command_id:m,
+					device_sn:s,
+					status:n,
+				}
+				version:v
+			}
+				m: command_id
+				n: 0收到且在线,1收到不在线,2收到不在在列表
+				v: 整数版本号
+	2.5同步开门记录
+		专用topic
+		2.5.1上行发布
+			{
+				command:4,
+				data:[
+					{
+						type:n,
+						timestamp:m,
+						device_sn:s,
+						reserve:rs
+					},
+					...
+				],
+				version:v
+			}
+				n: 0=门磁开启,1=门磁闭合,2=远程开锁,3=指纹开锁,4=临时密码开锁,5=门卡开锁
+				m: 时间戳整数
+				s: 设备串号字符串,
+				rs:保留字符串,当type>=3为用户id(用户位置),默认""
+	
+	2.6心跳上报
+		专用topic
+		2.5.1上行请求
+			{
+				command:5,
+				data:[
+					{
+						sn:sn,
+						ol:0/1
+						rssi:db
+					},
+					...
+				],
+				need:n,
+				version:v,
+				timestamp:m
+			}
+				sn:设备串号
+				ol:在线0/1
+				rssi:信号强度db
+				n: 0不做任何,1给服务器时间戳,2更新设备列表,3其他保留
+				v: 整数版本号
+				m: 秒
+	2.7远程重启
+		专用topic
+		2.7.1上行请求
+			{
+				command:6,
+				data:{}
+			}
+	2.8重定义WIFI
+		专用topic
+		2.8.1上行请求
+			{
+				command:7,
+				data:{
+					sid:"",
+					key:'',
+					type:n
+				}
+			}
+			sid=网络路由或AP的sid
+			key=秘钥
+			type:秘钥入网方式, 0=WPA/WPA2-P,1=...
+3.服务器
+	3.1域名
+		device.smartxwei.com
+	3.2端口
+		8091
