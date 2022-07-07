@@ -22,7 +22,6 @@ static bool json_start()
 //-------------------------------------------------------------------
 /*
 	name=null, data={, else data="name":{
-*/
 static int json_put_object_start(char *name)
 {
 	if(!is_json_start){
@@ -40,8 +39,8 @@ static int json_put_object_start(char *name)
 
 	return 0;
 }
-/*
 */
+/*
 static int json_put_object_end()
 {
 	if(!is_json_start){
@@ -54,9 +53,9 @@ static int json_put_object_end()
 	strcat(buffer, "}");
 	return 0;
 }
+*/
 /*
 	name=null, data=[, else data="name":[
-*/
 static int json_put_array_start(char *name)
 {
 	if(!is_json_start){
@@ -73,8 +72,8 @@ static int json_put_array_start(char *name)
 
 	return 0;
 }
-/*
 */
+/*
 static int json_put_array_end()
 {
 	if(!is_json_start){
@@ -87,6 +86,7 @@ static int json_put_array_end()
 	strcat(buffer, "]");
 	return 0;
 }
+*/
 /*
 */
 static int json_split()

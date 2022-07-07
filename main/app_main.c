@@ -1,9 +1,9 @@
 /*
  * @Author: cgy233 1781387847@qq.com
  * @Date: 2022-04-26 01:30:40
- * @LastEditors: cgy233 1781387847@qq.com
- * @LastEditTime: 2022-06-11 11:45:40
- * @FilePath: \Ble_Tracker_Gateway\main\app_main.c
+ * @LastEditors: error: git config user.name && git config user.email & please set dead value or install git
+ * @LastEditTime: 2022-06-12 17:56:41
+ * @FilePath: \BLE_Tracker_Gateway\main\app_main.c
  * @Description: 
  * 
  * Copyright (c) 2022 by cgy233 1781387847@qq.com, All Rights Reserved. 
@@ -92,6 +92,8 @@ typedef unsigned char byte;
 #define XV_GW_REMOTE_RESTART 6
 #define XV_LOCK_LIST_LENGTH 8 // Lock count
 
+int g_mi_band_rssi = 0;
+
 uint8_t g_version; // Firmware version
 
 uint8_t g_led_flag = 0; // led status flag
@@ -111,14 +113,16 @@ static int g_temp_cmd = -1;
 
 esp_mqtt_client_handle_t g_mqtt_client; // MQTT client handle
 
-char g_topic_up[32] = {0};
-char g_topic_down[34] = {0};
+// char g_topic_up[32] = {0};
+// char g_topic_down[34] = {0};
+char g_topic_up[32] = "esp32";
+char g_topic_down[34] = "hass";
 
 uint8_t g_pin[20] = {0x7f, 0x12, 0x0c, 0x8f, 0x92, 0x40, 0xb8, 0xc4, 0x53, 0x07, 0x3b, 0x42, 0x31, 0x51, 0xa8, 0x45, 0xdc, 0x7a, 0xfb, 0xbd}; // BLE Ping data
 uint8_t g_buf_send[32] = {0}; // BLE send data
 byte g_static_key[16] = {0xca, 0x5b, 0xd3, 0x8a, 0xe8, 0x59, 0x73, 0xfd, 0x77, 0x59, 0xec, 0x02, 0x00, 0x00, 0x00, 0x00}; // BLE Secret Key
 byte g_dynamic_key[4] = {0}; // BLE dynamic key
-static uint32_t duration = 12; // Scanning period
+static uint32_t duration = 15; // Scanning period
 
 msg_base *g_msg_cmd = 0;
 
@@ -1013,14 +1017,14 @@ static void mqtt_app_start(char* mac)
 {
     char client_id[41] = {0};
     sprintf(client_id, "BLE_GATEWAY_%s", mac);
-    sprintf(g_topic_up, "up_%s", mac);
-    sprintf(g_topic_down, "down_%s", mac);
+    // sprintf(g_topic_up, "up_%s", mac);
+    // sprintf(g_topic_down, "down_%s", mac);
     // MQTT CONFIG, client id is board mac.
     esp_mqtt_client_config_t mqtt_cfg = {
         .host = "cyupi.top",
         .port = 1883,
-        .username = "xv_gateway",
-        .password = "xiaowei123",
+        .username = "ethan",
+        .password = "cgy233..",
         // .host = "device.smartxwei.com",
         // .port = 8091,
         // .client_id = client_id, 
@@ -1355,21 +1359,22 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
                                                 ESP_BLE_AD_TYPE_NAME_CMPL, &adv_name_len);
             // ESP_LOGI(TAG, "searched Device Name Len %d", adv_name_len);
             // esp_log_buffer_char(TAG, adv_name, adv_name_len);
-            char band[] = "Mi Smart Band 6";
             if (adv_name != NULL)
             {
-                printf("Device name: %s, RSSI: %d\n", band, scan_result->scan_rst.rssi);
-                // UPDATE SUB LOCK LIST
-                if(json_start())
-                {
-                    json_put_string("device_name", band);
-                    json_split();
-                    json_put_int("rssi", scan_result->scan_rst.rssi);
+                g_mi_band_rssi = scan_result->scan_rst.rssi;
+                // char band[] = "Mi Smart Band 6";
+                // printf("Device name: %s, RSSI: %d\n", band, g_mi_band_rssi);
+                // // UPDATE SUB LOCK LIST/
+                // if(json_start())
+                // {
+                //     json_put_string("device_name", band);
+                //     json_split();
+                //     json_put_int("rssi", g_mi_band_rssi);
                     
-                    json_end();
-                    char *buffer = json_buffer();
-                    esp_mqtt_client_publish(g_mqtt_client, g_topic_up, buffer, 0, QOS1, 0);
-                }
+                //     json_end();
+                //     char *buffer = json_buffer();
+                //     esp_mqtt_client_publish(g_mqtt_client, g_topic_up, buffer, 0, QOS1, 0);
+                // }
             }
 
             if (adv_name != NULL
@@ -1413,7 +1418,24 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
 
         case ESP_GAP_SEARCH_INQ_CMPL_EVT:
         {
-            printf("****************End of one scan cycle.*****************\n");
+            
+            char band[] = "Mi Smart Band 6";
+            printf("Device name: %s, RSSI: %d\n", band, g_mi_band_rssi);
+            // UPDATE SUB LOCK LIST/
+            if(json_start())
+            {
+                json_put_string("device_name", band);
+                json_split();
+                json_put_int("rssi", g_mi_band_rssi);
+                
+                json_end();
+                char *buffer = json_buffer();
+                esp_mqtt_client_publish(g_mqtt_client, g_topic_up, buffer, 0, QOS1, 0);
+            }
+            g_mi_band_rssi = 0;
+            // printf("****************End of one scan cycle.*****************\n");
+            /*
+            g_mi_band_rssi = 0;
             for (int i = 0; i < XV_LOCK_LIST_LENGTH; i++)
             {
                 if(g_device_list[i].checked)
@@ -1430,9 +1452,10 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
                     }
                 }
             }
+            */
             // FEED DOG
-            // esp_task_wdt_reset();
-            // rtc_wdt_feed();
+            esp_task_wdt_reset();
+            rtc_wdt_feed();
             g_ble_scan_count = (g_scan_max + 1);
             g_ble_scaning = false;
             break;
@@ -1542,7 +1565,7 @@ void ble_scan()
     // printf("begin esp_ble_gap_start_scanning\n");
     if(!g_ble_scaning)
     {
-        printf("esp_ble_gap_start_scanning...\n");
+        // printf("esp_ble_gap_start_scanning...\n");
         for (int i = 0; i < XV_LOCK_LIST_LENGTH; i++){
             g_device_list[i].checked = 0;
             g_device_list[i].rssi = 0;
@@ -1555,77 +1578,25 @@ void ble_scan()
 */
 void send_heart_beast()
 {
-    if(json_start())
-    {
-        json_put_int("command", XV_GW_REMOTE_HEART_BEAST);
-        // set boject array
-        json_split();
-        json_put_array_start("data");
-        int flag = 1;
-        for (int i = 0; i < XV_LOCK_LIST_LENGTH; i++)
-        {
-            if (0 != g_device_list[i].sn[0])
-            {
-                flag = 0;
-                break;
-            }
-        }
-        if (flag)
-        {
-
-            // UPDATE SUB LOCK LIST
-            if(json_start())
-            {
-                json_put_int("command", 1);
-                json_split();
-                json_put_int("version", g_version);
-                
-                json_end();
-                char *buffer = json_buffer();
-                esp_mqtt_client_publish(g_mqtt_client, g_topic_up, buffer, 0, QOS1, 0);
-            }
-            printf("Lock List id NULL, Sent Update Lock list publish successful.\n");
-        }
-        for(int i = 0; i < XV_LOCK_LIST_LENGTH; i ++)
-        {
-            if(0 != g_device_list[i].sn[0])
-            {
-                if(i > 0){
-                    json_split();
-                }
-                // object
-                json_put_object_start(0);
-
-                json_put_string("sn", g_device_list[i].sn);
-                json_split();
-                json_put_int("ol", g_device_list[i].online? 1: 0);
-
-                json_split();
-                json_put_int("rssi", g_device_list[i].rssi);
-                json_put_object_end();
-            }
-        }
-        json_put_array_end();
-
-        json_split();
-        json_put_int("need", 0);
-        json_split();
-        json_put_int("timestamp", nowTimeStamp());
-        json_split();
-        json_put_int("version", g_version);
+    // char band[] = "Mi Smart Band 6";
+    // printf("Device name: %s, RSSI: %d\n", band, g_mi_band_rssi);
+    // // UPDATE SUB LOCK LIST/
+    // if(json_start())
+    // {
+    //     json_put_string("device_name", band);
+    //     json_split();
+    //     json_put_int("rssi", g_mi_band_rssi);
         
-        json_end();
-        char *buffer = json_buffer();
-        printf("send_heart_beast: %s\n", buffer);
-        esp_mqtt_client_publish(g_mqtt_client, g_topic_up, buffer, 0, QOS0, 0);
+    //     json_end();
+    //     char *buffer = json_buffer();
+    //     esp_mqtt_client_publish(g_mqtt_client, g_topic_up, buffer, 0, QOS1, 0);
+    // }
+    // test ping baidu
+    // ping_baidu();
 
-        // test ping baidu
-        ping_baidu();
-
-        // feed dog
-        esp_task_wdt_reset();
-        rtc_wdt_feed();
-    }
+    // feed dog
+    esp_task_wdt_reset();
+    rtc_wdt_feed();
 }
 /**
  * @description: Lock list maintain manager, process command in queue, report hearbeat;
@@ -1636,7 +1607,6 @@ void task_lock_list_maintain(void *param)
 {
     int n = 0;
     int j = 0;
-    int k = 0;
     int check_times = 0;
 
     // clear buffer
@@ -1645,8 +1615,7 @@ void task_lock_list_maintain(void *param)
     }
 
     // test mi band 6
-
-    uint8_t tmp_bda[6] = {0xc6, 0x5d, 0xa0, 0x25, 0x34, 0x91};
+    uint8_t tmp_bda[6] = {0xc2, 0x92, 0x7f, 0xb7, 0xe1, 0xf8};
     esp_ble_gap_update_whitelist(true, tmp_bda, BLE_WL_ADDR_TYPE_PUBLIC);
 
     ble_empty_cmd_data();
@@ -1654,19 +1623,12 @@ void task_lock_list_maintain(void *param)
     while(1)
     {
         // heartbeat
-        if (j >= 30)
+        if (j >= 10)
         {
             // send_heart_beast();
             j = 0;
         }
-        // check lock data
-        if (k >= 5)
-        {
-            // check_lock_data();
-            k = 0;
-        }
         j += 1;
-        k += 1;
         n += 1;
         if(g_ble_scan_param_complete)
         {
@@ -1694,8 +1656,8 @@ void task_lock_list_maintain(void *param)
                 g_ble_scan_count += 1;
                 check_times = 0;
                 // printf("ssssss: %d-%d-%d\n", g_ble_scan_count, g_ble_scaning? 1:0, g_scan_max);
-                if(g_scan_max >= 12){
-                    g_scan_max = 12;
+                if(g_scan_max >= 15){
+                    g_scan_max = 15;
                 }
 
                 if(g_ble_scan_count >= 15){
@@ -1768,7 +1730,7 @@ void task_lock_list_maintain(void *param)
                         }
                     }
                     else{
-                        g_scan_max = 12;
+                        g_scan_max = 15;
                     }
                 }
             }
