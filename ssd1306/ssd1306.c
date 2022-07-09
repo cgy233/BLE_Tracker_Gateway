@@ -606,10 +606,10 @@ void ssd1306_fadeout(SSD1306_t * dev)
 
 void ssd1306_dump(SSD1306_t dev)
 {
-	printf("_address=%x\n",dev._address);
-	printf("_width=%x\n",dev._width);
-	printf("_height=%x\n",dev._height);
-	printf("_pages=%x\n",dev._pages);
+	ESP_LOGI(TAG, "_address=%x",dev._address);
+	ESP_LOGI(TAG, "_width=%x",dev._width);
+	ESP_LOGI(TAG, "_height=%x",dev._height);
+	ESP_LOGI(TAG, "_pages=%x",dev._pages);
 }
 
 void ssd1306_dump_page(SSD1306_t * dev, int page, int seg)

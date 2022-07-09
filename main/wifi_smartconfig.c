@@ -10,7 +10,6 @@
  */
 #include "nvs.h"
 #include "nvs_flash.h"
-
 #include "esp_log.h"
 #include "esp_wifi.h"
 #include "esp_system.h"
@@ -18,8 +17,10 @@
 #include "esp_http_client.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
-
 #include "wifi_smartconfig.h"
+
+#define TAG "WIFI"
+
 
 extern uint8_t g_led_flag;
 static EventGroupHandle_t wifi_event_group_handler; // WiFi连接事件标志组句柄
@@ -34,14 +35,14 @@ void wifi_smartconfig_check(void)
     uint32_t wifi_update = 0;
     nvs_get_u32(wificfg_nvs_handler,"wifi_update",&wifi_update);
     if(MY_WIFI_UPDATE == wifi_update )
-        printf("wifi_cfg needn't to update. \n");
+        ESP_LOGI(TAG, "wifi_cfg needn't to update. ");
     else
     {
-        printf("wifi_cfg update now... \n");
+        ESP_LOGI(TAG, "wifi_cfg update now... ");
         ESP_ERROR_CHECK( nvs_set_str(wificfg_nvs_handler,"wifi_ssid",MY_WIFI_SSID) );
         ESP_ERROR_CHECK( nvs_set_str(wificfg_nvs_handler,"wifi_passwd",MY_WIFI_PASSWD) ); 
         ESP_ERROR_CHECK( nvs_set_u32(wificfg_nvs_handler,"wifi_update",MY_WIFI_UPDATE) );
-        printf("wifi_cfg update ok. \n");
+        ESP_LOGI(TAG, "wifi_cfg update ok. ");
     }
     ESP_ERROR_CHECK( nvs_commit(wificfg_nvs_handler) ); /* 提交 */
     nvs_close(wificfg_nvs_handler);                     /* 关闭 */
@@ -69,7 +70,7 @@ static void smartconfig_event_handler(void* arg, esp_event_base_t event_base,int
             {
                 esp_wifi_connect();
                 retry_num++;
-                printf("retry to connect to the AP %d times. \n",retry_num);
+                ESP_LOGI(TAG, "retry to connect to the AP %d times. ",retry_num);
                 if (retry_num > 30)  /* WiFi重连次数大于10 */
                 {
                     /* 将WiFi连接事件标志组的WiFi连接失败事件位置1 */
@@ -86,7 +87,7 @@ static void smartconfig_event_handler(void* arg, esp_event_base_t event_base,int
     else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) 
     {
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data; /* 获取IP地址信息*/
-        printf("got ip:%d.%d.%d.%d \n" , IP2STR(&event->ip_info.ip));  /* 打印ip地址*/
+        ESP_LOGI(TAG, "got ip:%d.%d.%d.%d " , IP2STR(&event->ip_info.ip));  /* 打印ip地址*/
         retry_num = 0;                                              /* WiFi重连次数清零 */
         /* 将WiFi连接事件标志组的WiFi连接成功事件位置1 */
         xEventGroupSetBits(wifi_event_group_handler, WIFI_CONNECTED_BIT);
@@ -96,17 +97,17 @@ static void smartconfig_event_handler(void* arg, esp_event_base_t event_base,int
     {
         if(event_id == SC_EVENT_SCAN_DONE )             /* 开始扫描智能配网设备端 */
         {
-            printf("Scan done\n");
+            ESP_LOGI(TAG, "Scan done");
             g_led_flag = 3;
         }
         else if(event_id == SC_EVENT_FOUND_CHANNEL)     /* 得到了智能配网通道 */
         {
-            printf("Found channel \n");
+            ESP_LOGI(TAG, "Found channel ");
             g_led_flag = 4;
         }
         else if(event_id == SC_EVENT_GOT_SSID_PSWD)     /* 得到了智能配网设备提供的ssid和password */
         {
-            printf("smartconfig got SSID and password\n");
+            ESP_LOGI(TAG, "smartconfig got SSID and password");
             g_led_flag = 5;
             /* 获取智能配网设备端提供的数据信息 */
             smartconfig_event_got_ssid_pswd_t *evt = (smartconfig_event_got_ssid_pswd_t *)event_data;
@@ -127,8 +128,8 @@ static void smartconfig_event_handler(void* arg, esp_event_base_t event_base,int
             /* 打印WiFi名称和密码 */
             memcpy(ssid, evt->ssid, sizeof(evt->ssid));
             memcpy(password, evt->password, sizeof(evt->password));
-            printf("SSID:%s \n", ssid);
-            printf("PASSWORD:%s \n", password);
+            ESP_LOGI(TAG, "SSID:%s ", ssid);
+            ESP_LOGI(TAG, "PASSWORD:%s ", password);
 
             /* 将得到的WiFi名称和密码存入NVS*/
             nvs_handle wificfg_nvs_handler;
@@ -137,7 +138,7 @@ static void smartconfig_event_handler(void* arg, esp_event_base_t event_base,int
             ESP_ERROR_CHECK( nvs_set_str(wificfg_nvs_handler,"wifi_passwd",password) );
             ESP_ERROR_CHECK( nvs_commit(wificfg_nvs_handler) ); /* 提交 */
             nvs_close(wificfg_nvs_handler);                     /* 关闭 */ 
-            printf("smartconfig save wifi_cfg to NVS .\n");
+            ESP_LOGI(TAG, "smartconfig save wifi_cfg to NVS .");
 
             /* 根据得到的WiFi名称和密码连接WiFi*/
             ESP_ERROR_CHECK( esp_wifi_disconnect() );
@@ -164,7 +165,7 @@ void smartconfig_init_start(void)
     smartconfig_start_config_t cfg = SMARTCONFIG_START_CONFIG_DEFAULT();
     /* 开始智能配网 */
     ESP_ERROR_CHECK( esp_smartconfig_start(&cfg) );
-    printf("smartconfig start ....... \n");
+    ESP_LOGI(TAG, "smartconfig start ....... ");
     g_led_flag = 2;
 
     /* 使用事件标志组等待连接建立(WIFI_CONNECTED_BIT)或连接失败(WIFI_FAIL_BIT)事件 */
@@ -174,12 +175,12 @@ void smartconfig_init_start(void)
                                     true, false, portMAX_DELAY); 
     if(uxBits & WIFI_CONNECTED_BIT) 
     {
-        printf("WiFi Connected to ap ok. \n");
+        ESP_LOGI(TAG, "WiFi Connected to ap ok. ");
         esp_smartconfig_stop(); /* 关闭智能配网 */
     }
     if(uxBits & SMART_CONFIG_BIT) 
     {
-        printf("smartconfig over \n");
+        ESP_LOGI(TAG, "smartconfig over ");
         esp_smartconfig_stop(); /* 关闭智能配网 */
     }
 }
@@ -238,7 +239,7 @@ void wifi_init_sta(void)
     /* 启动WiFi连接 */
     ESP_ERROR_CHECK(esp_wifi_start());
 
-    printf("wifi_init_sta finished. \n");
+    ESP_LOGI(TAG, "wifi_init_sta finished. ");
 
     /* 使用事件标志组等待连接建立(WIFI_CONNECTED_BIT)或连接失败(WIFI_FAIL_BIT)事件 */
     EventBits_t bits;  /* 定义一个事件位变量来接收事件标志组等待函数的返回值 */ 
@@ -251,19 +252,19 @@ void wifi_init_sta(void)
     /* 根据事件标志组等待函数的返回值获取WiFi连接状态 */
     if (bits & WIFI_CONNECTED_BIT)  /* WiFi连接成功事件 */
 	{
-        printf("connected to ap %s OK \n",wifi_ssid);
-        printf("********************Wifi SSID: %s ********************\n", wifi_ssid);
-        printf("********************Wifi PASSWD: %s ********************\n", wifi_passwd);
+        ESP_LOGI(TAG, "connected to ap %s OK ",wifi_ssid);
+        ESP_LOGI(TAG, "********************Wifi SSID: %s ********************", wifi_ssid);
+        ESP_LOGI(TAG, "********************Wifi PASSWD: %s ********************", wifi_passwd);
         vEventGroupDelete(wifi_event_group_handler);    /* 删除WiFi连接事件标志组，WiFi连接成功后不再需要 */
     } 
 	else if (bits & WIFI_FAIL_BIT) /* WiFi连接失败事件 */
 	{
-        printf("Failed to connect to ap %s. \n",wifi_ssid);
+        ESP_LOGI(TAG, "Failed to connect to ap %s. ",wifi_ssid);
         smartconfig_init_start();   /* 开启智能配网 */
     } 
 	else 
     {
-        printf("UNEXPECTED EVENT \n");  /* 没有等待到事件 */
+        ESP_LOGI(TAG, "UNEXPECTED EVENT");  /* 没有等待到事件 */
         smartconfig_init_start();   /* 开启智能配网 */
     }
 }

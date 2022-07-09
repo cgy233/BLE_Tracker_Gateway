@@ -6,6 +6,7 @@
 #include "esp_http_client.h"
 #include "esp_flash_partitions.h"
 #include "esp_partition.h"
+#include "esp_log.h"
 
 #include "lwip/sockets.h"
 #include "lwip/dns.h"
@@ -19,6 +20,8 @@
 #include "driver/gpio.h"
 #include "errno.h"
 #include "ota.h"
+
+#define TAG "OTA"
 
 #define XV_GW_OTA 2
 #define QOS1 1
@@ -41,7 +44,7 @@ static void http_cleanup(esp_http_client_handle_t client)
 
 static void __attribute__((noreturn)) task_fatal_error(void)
 {
-    printf("Exiting task due to fatal error...\n");
+    ESP_LOGI(TAG, "Exiting task due to fatal error...");
     vTaskDelete(NULL);
 
     while (1) {
@@ -56,7 +59,7 @@ static void print_sha256 (const uint8_t *image_hash, const char *label)
     for (int i = 0; i < HASH_LEN; ++i) {
         sprintf(&hash_print[i * 2], "%02x", image_hash[i]);
     }
-    printf("%s: %s\n", label, hash_print);
+    ESP_LOGI(TAG, "%s: %s", label, hash_print);
 }
 
 /**
@@ -71,16 +74,16 @@ void ota_task(void *pvParameter)
     esp_ota_handle_t update_handle = 0 ;
     const esp_partition_t *update_partition = NULL;
 
-    printf("Starting OTA...\n");
+    ESP_LOGI(TAG, "Starting OTA...");
 
     const esp_partition_t *configured = esp_ota_get_boot_partition();
     const esp_partition_t *running = esp_ota_get_running_partition();
 
     if (configured != running) {
-        printf("Configured OTA boot partition at offset 0x%08x, but running from offset 0x%08x\n", configured->address, running->address);
-        printf("(This can happen if either the OTA boot data or preferred boot image become corrupted somehow.)\n");
+        ESP_LOGI(TAG, "Configured OTA boot partition at offset 0x%08x, but running from offset 0x%08x", configured->address, running->address);
+        ESP_LOGI(TAG, "(This can happen if either the OTA boot data or preferred boot image become corrupted somehow.)");
     }
-    printf("Running partition type %d subtype %d (offset 0x%08x)\n", running->type, running->subtype, running->address);
+    ESP_LOGI(TAG, "Running partition type %d subtype %d (offset 0x%08x)", running->type, running->subtype, running->address);
 
     esp_http_client_config_t config = {
         .url = pvParameter,
@@ -94,12 +97,12 @@ void ota_task(void *pvParameter)
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (client == NULL) {
-        printf("Failed to initialise HTTP connection\n");
+        ESP_LOGI(TAG, "Failed to initialise HTTP connection");
         task_fatal_error();
     }
     err = esp_http_client_open(client, 0);
     if (err != ESP_OK) {
-        printf("Failed to open HTTP connection: %s\n", esp_err_to_name(err));
+        ESP_LOGI(TAG, "Failed to open HTTP connection: %s", esp_err_to_name(err));
         esp_http_client_cleanup(client);
         task_fatal_error();
     }
@@ -107,7 +110,7 @@ void ota_task(void *pvParameter)
 
     update_partition = esp_ota_get_next_update_partition(NULL);
     assert(update_partition != NULL);
-    printf("Writing to partition subtype %d at offset 0x%x\n", update_partition->subtype, update_partition->address);
+    ESP_LOGI(TAG, "Writing to partition subtype %d at offset 0x%x", update_partition->subtype, update_partition->address);
 
     int binary_file_length = 0;
     /*deal with all receive packet*/
@@ -115,7 +118,7 @@ void ota_task(void *pvParameter)
     while (1) {
         int data_read = esp_http_client_read(client, ota_write_data, BUFFSIZE);
         if (data_read < 0) {
-            printf("Error: SSL data read error\n");
+            ESP_LOGI(TAG, "Error: SSL data read error");
             http_cleanup(client);
             task_fatal_error();
         } else if (data_read > 0) {
@@ -124,32 +127,32 @@ void ota_task(void *pvParameter)
                 if (data_read > sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t) + sizeof(esp_app_desc_t)) {
                     // check current version with downloading
                     memcpy(&new_app_info, &ota_write_data[sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t)], sizeof(esp_app_desc_t));
-                    printf("New firmware version: %s", new_app_info.version);
+                    ESP_LOGI(TAG, "New firmware version: %s", new_app_info.version);
 
                     esp_app_desc_t running_app_info;
                     if (esp_ota_get_partition_description(running, &running_app_info) == ESP_OK) {
-                        printf("Running firmware version: %s", running_app_info.version);
+                        ESP_LOGI(TAG, "Running firmware version: %s", running_app_info.version);
                     }
 
                     const esp_partition_t* last_invalid_app = esp_ota_get_last_invalid_partition();
                     esp_app_desc_t invalid_app_info;
                     if (esp_ota_get_partition_description(last_invalid_app, &invalid_app_info) == ESP_OK) {
-                        printf("Last invalid firmware version: %s", invalid_app_info.version);
+                        ESP_LOGI(TAG, "Last invalid firmware version: %s", invalid_app_info.version);
                     }
 
                     // check current version with last invalid partition
                     if (last_invalid_app != NULL) {
                         if (memcmp(invalid_app_info.version, new_app_info.version, sizeof(new_app_info.version)) == 0) {
-                            printf("New version is the same as invalid version.");
-                            printf("Previously, there was an attempt to launch the firmware with %s version, but it failed.", invalid_app_info.version);
-                            printf("The firmware has been rolled back to the previous version.");
+                            ESP_LOGI(TAG, "New version is the same as invalid version.");
+                            ESP_LOGI(TAG, "Previously, there was an attempt to launch the firmware with %s version, but it failed.", invalid_app_info.version);
+                            ESP_LOGI(TAG, "The firmware has been rolled back to the previous version.");
                             http_cleanup(client);
                             vTaskDelete(NULL);
                             //response mqtt
                         }
                     }
                     if (memcmp(new_app_info.version, running_app_info.version, sizeof(new_app_info.version)) == 0) {
-                        printf("Current running version is the same as a new. We will not continue the update.");
+                        ESP_LOGI(TAG, "Current running version is the same as a new. We will not continue the update.");
                         http_cleanup(client);
                         vTaskDelete(NULL);
                         //response mqtt
@@ -158,17 +161,17 @@ void ota_task(void *pvParameter)
 
                     err = esp_ota_begin(update_partition, OTA_WITH_SEQUENTIAL_WRITES, &update_handle);
                     if (err != ESP_OK) {
-                        printf("esp_ota_begin failed (%s)", esp_err_to_name(err));
+                        ESP_LOGI(TAG, "esp_ota_begin failed (%s)", esp_err_to_name(err));
                         http_cleanup(client);
                         esp_ota_abort(update_handle);
                         task_fatal_error();
                     }
-                    printf("esp_ota_begin succeeded");
+                    ESP_LOGI(TAG, "esp_ota_begin succeeded");
 					char buffer[20] = "{\"command\": 6}";
-					printf("Publish Start OTA Done: %s\n", buffer);
+					ESP_LOGI(TAG, "Publish Start OTA Done: %s", buffer);
 					esp_mqtt_client_publish(g_mqtt_client, g_topic_up, buffer, 0, QOS1, 0);
                 } else {
-                    printf("received package is not fit len\n");
+                    ESP_LOGI(TAG, "received package is not fit len");
                     http_cleanup(client);
                     esp_ota_abort(update_handle);
                     task_fatal_error();
@@ -181,25 +184,25 @@ void ota_task(void *pvParameter)
                 task_fatal_error();
             }
             binary_file_length += data_read;
-            //printf("Written image length %d\n", binary_file_length);
+            //ESP_LOGI(TAG, "Written image length %d", binary_file_length);
         } else if (data_read == 0) {
            /*
             * As esp_http_client_read never returns negative error code, we rely on
             * `errno` to check for underlying transport connectivity closure if any
             */
             if (errno == ECONNRESET || errno == ENOTCONN) {
-                printf("Connection closed, errno = %d\n", errno);
+                ESP_LOGI(TAG, "Connection closed, errno = %d", errno);
                 break;
             }
             if (esp_http_client_is_complete_data_received(client) == true) {
-                printf("Connection closed\n");
+                ESP_LOGI(TAG, "Connection closed");
                 break;
             }
         }
     }
-    printf("Total Write binary data length: %d\n", binary_file_length);
+    ESP_LOGI(TAG, "Total Write binary data length: %d", binary_file_length);
     if (esp_http_client_is_complete_data_received(client) != true) {
-        printf("Error in receiving complete file\n");
+        ESP_LOGI(TAG, "Error in receiving complete file");
         http_cleanup(client);
         esp_ota_abort(update_handle);
         task_fatal_error();
@@ -208,9 +211,9 @@ void ota_task(void *pvParameter)
     err = esp_ota_end(update_handle);
     if (err != ESP_OK) {
         if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
-            printf("Image validation failed, image is corrupted\n");
+            ESP_LOGI(TAG, "Image validation failed, image is corrupted");
         } else {
-            printf("esp_ota_end failed (%s)!\n", esp_err_to_name(err));
+            ESP_LOGI(TAG, "esp_ota_end failed (%s)!", esp_err_to_name(err));
         }
         http_cleanup(client);
         task_fatal_error();
@@ -218,13 +221,13 @@ void ota_task(void *pvParameter)
 
     err = esp_ota_set_boot_partition(update_partition);
     if (err != ESP_OK) {
-        printf("esp_ota_set_boot_partition failed (%s)!", esp_err_to_name(err));
+        ESP_LOGI(TAG, "esp_ota_set_boot_partition failed (%s)!", esp_err_to_name(err));
         http_cleanup(client);
         task_fatal_error();
     }
-    printf("Prepare to restart system!\n");
-    printf("OTA Done.\n");
-    printf("Prepare to restart system!\n");
+    ESP_LOGI(TAG, "Prepare to restart system!");
+    ESP_LOGI(TAG, "OTA Done.");
+    ESP_LOGI(TAG, "Prepare to restart system!");
     esp_restart();
     return ;
 }
@@ -240,7 +243,7 @@ static bool diagnostic(void)
     io_conf.pull_up_en   = GPIO_PULLUP_ENABLE;
     gpio_config(&io_conf);
 
-    printf("Diagnostics (5 sec)...\n");
+    ESP_LOGI(TAG, "Diagnostics (5 sec)...");
     vTaskDelay(5000 / portTICK_PERIOD_MS);
 
     // bool diagnostic_is_ok = gpio_get_level(CONFIG_EXAMPLE_GPIO_DIAGNOSTIC);
@@ -286,10 +289,10 @@ void ota_init()
             // run diagnostic function ...
             bool diagnostic_is_ok = diagnostic();
             if (diagnostic_is_ok) {
-                printf("Diagnostics completed successfully! Continuing execution ...\n");
+                ESP_LOGI(TAG, "Diagnostics completed successfully! Continuing execution ...");
                 esp_ota_mark_app_valid_cancel_rollback();
             } else {
-                printf("Diagnostics failed! Start rollback to the previous version ...\n");
+                ESP_LOGI(TAG, "Diagnostics failed! Start rollback to the previous version ...");
                 esp_ota_mark_app_invalid_rollback_and_reboot();
             }
         }
@@ -303,10 +306,10 @@ void check_firmware_version()
     esp_app_desc_t running_app_info;
     if (esp_ota_get_partition_description(running, &running_app_info) == ESP_OK) {
         g_version = atoi(running_app_info.version);
-        printf("**************************************************\n");
-        printf("**************************************************\n");
-        printf("*************FIRMWARE VERSION: %d******************\n", g_version);
-        printf("**************************************************\n");
-        printf("**************************************************\n");
+        ESP_LOGI(TAG, "**************************************************");
+        ESP_LOGI(TAG, "**************************************************");
+        ESP_LOGI(TAG, "*************FIRMWARE VERSION: %d******************", g_version);
+        ESP_LOGI(TAG, "**************************************************");
+        ESP_LOGI(TAG, "**************************************************");
     }
 }

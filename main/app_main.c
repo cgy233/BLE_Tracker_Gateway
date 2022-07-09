@@ -58,6 +58,7 @@
 #include "json.h"
 #include "driver/gpio.h"
 #include "errno.h"
+#include "ssd1306.h"
 
 #include "led.h"
 #include "button.h"
@@ -65,7 +66,8 @@
 #include "ota.h"
 #include "ethernet.h"
 #include "ping_baidu.h"
-#include "ssd1306.h"
+#include "display.h"
+#include "sntp.h"
 
 
 #define TAG "XV_SPUER_GW"
@@ -244,7 +246,8 @@ void ble_empty_cmd_data()
         memset((char *)g_msg_cmd, 0, MSG_MAX_BUFFER);
     }
     char *pt = (char *)g_msg_cmd;
-    printf("ble_empty_cmd_data %d\n", (int)pt);
+    // ESP_LOGI(TAG, "ble_empty_cmd_data %d", (int)pt);
+    ESP_LOGI(TAG, "ble_empty_cmd_data %d", (int)pt);
     g_msg_cmd = 0;
 }
 /**
@@ -261,15 +264,15 @@ void msg_set(msg_base *msg)
         data += 1;
 		if(0 == *data)
 		{
-            ///ESP_LOGI(TAG, "22222222 %d, %s\n", i, data+1);
+            ///ESP_LOGI(TAG, "22222222 %d, %s", i, data+1);
 			memcpy(g_buffer_list[i], (char *)msg, MSG_MAX_BUFFER);
 			return;
 		}
         else{
-            //ESP_LOGI(TAG, "yyyyyyy %d- %s\n\n", i, data);
+            //ESP_LOGI(TAG, "yyyyyyy %d- %s", i, data);
         }
 	}
-    //ESP_LOGI(TAG, "rrrrrr %d\n", g_msg_last);
+    //ESP_LOGI(TAG, "rrrrrr %d", g_msg_last);
 	memcpy(g_buffer_list[g_msg_last], (char *)msg, MSG_MAX_BUFFER);
 	++ g_msg_last;
 	if(g_msg_last >= MSG_MAX_COUNT){
@@ -287,7 +290,7 @@ msg_base* msg_get()
 	{
         char *data = g_buffer_list[i];
         data += 1;
-        //ESP_LOGI(TAG, "msg_get %d, %s\n", i, data);
+        //ESP_LOGI(TAG, "msg_get %d, %s", i, data);
 		if(*data != 0){
 			return (msg_base * )g_buffer_list[i];
 		}
@@ -311,38 +314,6 @@ int decTobcd(int decimal)
 	}
 	return sum;
 }
-/**
- * @description: Gets the timestamp of the current system
- * @param {*}
- * @return {*}
- */
-int64_t nowTimeStamp() {
-
-	struct timeval tv;
-	gettimeofday(&tv, NULL);
-	return ((tv.tv_sec * 1000LL + (tv.tv_usec / 1000LL)) / 1000);
-}
-
-/**
- * @description: Gets the date of the current system
- * @param {*}
- * @return {*}
- */
-void nowTime()
-{
-    time_t now;
-    char strftime_buf[64];
-    struct tm timeinfo;
-
-    time(&now);
-    // Set timezone to China Standard Time
-    setenv("TZ", "CST-8", 1);
-    tzset();
-
-    localtime_r(&now, &timeinfo);
-    strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);
-    printf("The current date/time in Shanghai is: %s\n", strftime_buf);
-}
 
 // Wait BLE data timer
 esp_ble_gattc_cb_param_t *p_data_gb; 
@@ -361,14 +332,14 @@ void BLE_timeout_timer(void *arg)
         if(0 != g_msg_cmd){
             ble_empty_cmd_data();
         }
-        printf("Ble data wait timeout.\n");
+        ESP_LOGI(TAG, "Ble data wait timeout.");
         ble_is_connected = false;
         esp_ble_gattc_close(gattc_if_gb, gl_profile_tab[PROFILE_A_APP_ID].conn_id);
         esp_ble_gap_disconnect(p_data_gb->connect.remote_bda);
     }
     else
     {
-        printf("Ble data success.\n");
+        ESP_LOGI(TAG, "Ble data success.");
         ble_timeout_flag = 1;
     }
 }
@@ -402,11 +373,11 @@ void xv_mqtt_event_hanler(esp_mqtt_event_handle_t event)
     char *command = json_get_uint(next, "command");
     if (command)
     {
-        //printf("command:%s\n", command);
+        //ESP_LOGI(TAG, "command:%s", command);
         next = (command + strlen(command) + 1);
     }
     else{
-        //printf("command null\n");
+        //ESP_LOGI(TAG, "command null");
         return;
     }
     g_temp_cmd = atoi(command);
@@ -421,11 +392,11 @@ void xv_mqtt_event_hanler(esp_mqtt_event_handle_t event)
             char *sub_command = json_get_uint(next, "sub_command");
             if (sub_command)
             {
-                //printf("sub_command:%s\n", sub_command);
+                //ESP_LOGI(TAG, "sub_command:%s", sub_command);
                 next = (sub_command + strlen(sub_command) + 1);
             }
             else{
-                // printf("sub_command null\n");
+                // ESP_LOGI(TAG, "sub_command null");
                 return;
             }
             sub_cmd = atoi(sub_command);
@@ -436,30 +407,30 @@ void xv_mqtt_event_hanler(esp_mqtt_event_handle_t event)
             char *command_id = json_get_uint(next, "command_id");
             if (command_id)
             {
-                // printf("command_id:%s\n", command_id);
+                // ESP_LOGI(TAG, "command_id:%s", command_id);
                 next = (command_id + strlen(command_id) + 1);
             }
             else{
-                // printf("command_id null\n");
+                // ESP_LOGI(TAG, "command_id null");
                 return;
             }
             char *device_sn = json_get_str(next, "device_sn");
             if(device_sn){
-                // printf("device_sn:%s\n", device_sn);
+                // ESP_LOGI(TAG, "device_sn:%s", device_sn);
                 next = (device_sn + strlen(device_sn) + 1);
             }
             else{
-                // printf("device_sn null\n");
+                // ESP_LOGI(TAG, "device_sn null");
                 return;
             }
 
             char *respone = json_get_uint(next, "respone");
             if(respone){
-                // printf("respone:%s\n", respone);
+                // ESP_LOGI(TAG, "respone:%s", respone);
                 next = (respone + strlen(respone) + 1);
             }
             else{
-                // printf("respone null\n");
+                // ESP_LOGI(TAG, "respone null");
                 return;
             }
             switch(sub_cmd)
@@ -485,41 +456,41 @@ void xv_mqtt_event_hanler(esp_mqtt_event_handle_t event)
                     // password
                     char *password= json_get_str(next, "passwd");
                     if(password){
-                        // printf("password:%s\n", password);
+                        // ESP_LOGI(TAG, "password:%s", password);
                         next = (password+ strlen(password) + 1);
                     }
                     else{
-                        // printf("password null\n");
+                        // ESP_LOGI(TAG, "password null");
                         return;
                     }
                     // start_time
                     char *start_time= json_get_uint(next, "start_time");
                     if(*start_time){
-                        // printf("start_time:%s\n", start_time);
+                        // ESP_LOGI(TAG, "start_time:%s", start_time);
                         next = (start_time + strlen(start_time) + 1);
                     }
                     else{
-                        // printf("start_time null\n");
+                        // ESP_LOGI(TAG, "start_time null");
                         return;
                     }
                     // end_time
                     char *end_time = json_get_uint(next, "end_time");
                     if(end_time){
-                        // printf("end_time:%s\n", end_time);
+                        // ESP_LOGI(TAG, "end_time:%s", end_time);
                         next = (end_time + strlen(end_time) + 1);
                     }
                     else{
-                        // printf("end_time null\n");
+                        // ESP_LOGI(TAG, "end_time null");
                         return;
                     }
                     // pos
                     char *pos = json_get_uint(next, "pos");
                     if(pos){
-                        // printf("pos:%s\n", pos);
+                        // ESP_LOGI(TAG, "pos:%s", pos);
                         next = (pos + strlen(pos) + 1);
                     }
                     else{
-                        // printf("pos null\n");
+                        // ESP_LOGI(TAG, "pos null");
                         return;
                     }
 
@@ -533,7 +504,7 @@ void xv_mqtt_event_hanler(esp_mqtt_event_handle_t event)
                     uint8_t month_start = timeinfo_start->tm_mon + 1;
                     uint8_t day_start = timeinfo_start->tm_mday;
                     uint8_t hour_start = timeinfo_start->tm_hour;
-                    // printf("DATE_START: %d %d %d %d\n", year_start, month_start, day_start, hour_start);
+                    // ESP_LOGI(TAG, "DATE_START: %d %d %d %d", year_start, month_start, day_start, hour_start);
 
                     time_t end_time_t = atoi(end_time);
                     timeinfo_end = localtime(&end_time_t);
@@ -542,7 +513,7 @@ void xv_mqtt_event_hanler(esp_mqtt_event_handle_t event)
                     uint8_t month_end = timeinfo_end->tm_mon + 1;
                     uint8_t day_end = timeinfo_end->tm_mday;
                     uint8_t hour_end = timeinfo_end->tm_hour;
-                    // printf("DATE_END: %d %d %d %d\n", year_end, month_end, day_end, hour_end);
+                    // ESP_LOGI(TAG, "DATE_END: %d %d %d %d", year_end, month_end, day_end, hour_end);
 
                     set_passwd->start_time = year_start * 0x40000 + month_start * 0x4000 + day_start * 0x200 + hour_start * 0x10 + 0;
                     set_passwd->end_time = year_end * 0x40000 + month_end * 0x4000 + day_end * 0x200 + hour_end * 0x10 + 10;
@@ -565,11 +536,11 @@ void xv_mqtt_event_hanler(esp_mqtt_event_handle_t event)
 
                     char *password = json_get_str(next, "passwd");
                     if(password){
-                        printf("password:%s\n", password);
+                        ESP_LOGI(TAG, "password:%s", password);
                         next = (password+ strlen(password) + 1);
                     }
                     else{
-                        printf("password null\n");
+                        ESP_LOGI(TAG, "password null");
                         return;
                     }
 
@@ -589,38 +560,38 @@ void xv_mqtt_event_hanler(esp_mqtt_event_handle_t event)
 
                     char *password= json_get_str(next, "number");
                     if(password){
-                        printf("password:%s\n", password);
+                        ESP_LOGI(TAG, "password:%s", password);
                         next = (password+ strlen(password) + 1);
                     }
                     else{
-                        printf("password null\n");
+                        ESP_LOGI(TAG, "password null");
                         return;
                     }
                     char *start_time= json_get_uint(next, "start_time");
                     if(*start_time){
-                        printf("start_time:%s\n", start_time);
+                        ESP_LOGI(TAG, "start_time:%s", start_time);
                         next = (start_time + strlen(start_time) + 1);
                     }
                     else{
-                        printf("start_time null\n");
+                        ESP_LOGI(TAG, "start_time null");
                         return;
                     }
                     char *end_time = json_get_uint(next, "end_time");
                     if(end_time){
-                        printf("end_time:%s\n", end_time);
+                        ESP_LOGI(TAG, "end_time:%s", end_time);
                         next = (end_time + strlen(end_time) + 1);
                     }
                     else{
-                        printf("end_time null\n");
+                        ESP_LOGI(TAG, "end_time null");
                         return;
                     }
                     char *pos = json_get_uint(next, "pos");
                     if(pos){
-                        printf("pos:%s\n", pos);
+                        ESP_LOGI(TAG, "pos:%s", pos);
                         next = (pos + strlen(pos) + 1);
                     }
                     else{
-                        printf("pos null\n");
+                        ESP_LOGI(TAG, "pos null");
                         return;
                     }
 
@@ -629,7 +600,7 @@ void xv_mqtt_event_hanler(esp_mqtt_event_handle_t event)
 
 
                     time_t start_time_t = atoi(start_time);
-                    printf("start_time_t: %ld", start_time_t);
+                    ESP_LOGI(TAG, "start_time_t: %ld", start_time_t);
                     timeinfo_start = localtime(&start_time_t);
 
                     uint8_t year_start = timeinfo_start->tm_year - 100;
@@ -637,17 +608,17 @@ void xv_mqtt_event_hanler(esp_mqtt_event_handle_t event)
                     uint8_t day_start = timeinfo_start->tm_mday;
                     uint8_t hour_start = timeinfo_start->tm_hour;
 
-                    printf("DATE_START: %d %d %d %d\n", year_start, month_start, day_start, hour_start);
+                    ESP_LOGI(TAG, "DATE_START: %d %d %d %d", year_start, month_start, day_start, hour_start);
 
                     time_t end_time_t = atoi(end_time);
-                    printf("end_time_t: %ld", end_time_t);
+                    ESP_LOGI(TAG, "end_time_t: %ld", end_time_t);
                     timeinfo_end = localtime(&end_time_t);
 
                     uint8_t year_end = timeinfo_end->tm_year - 100;
                     uint8_t month_end = timeinfo_end->tm_mon + 1;
                     uint8_t day_end = timeinfo_end->tm_mday;
                     uint8_t hour_end = timeinfo_end->tm_hour;
-                    printf("DATE_END: %d %d %d %d\n", year_end, month_end, day_end, hour_end);
+                    ESP_LOGI(TAG, "DATE_END: %d %d %d %d", year_end, month_end, day_end, hour_end);
 
                     set_card->start_time = year_start * 0x40000 + month_start * 0x4000 + day_start * 0x200 + hour_start * 0x10 + 0;
                     set_card->end_time = year_end * 0x40000 + month_end * 0x4000 + day_end * 0x200 + hour_end * 0x10 + 10;
@@ -670,11 +641,11 @@ void xv_mqtt_event_hanler(esp_mqtt_event_handle_t event)
                     msg_delete *delete_user = (msg_delete * )g_buffer_set;
                     char *pos = json_get_uint(next, "pos");
                     if(pos){
-                        printf("pos:%s\n", pos);
+                        ESP_LOGI(TAG, "pos:%s", pos);
                         next = (pos + strlen(pos) + 1);
                     }
                     else{
-                        printf("pos null\n");
+                        ESP_LOGI(TAG, "pos null");
                         return;
                     }
                     memcpy(delete_user->sn, device_sn, BLE_NAME_LEN);
@@ -695,10 +666,10 @@ void xv_mqtt_event_hanler(esp_mqtt_event_handle_t event)
             char *timestamp = json_get_uint(next, "timestamp");
             if (timestamp)
             {
-                printf("timestamp:%s\n", timestamp);
+                ESP_LOGI(TAG, "timestamp:%s", timestamp);
             }
             else{
-                printf("timestamp null\n");
+                ESP_LOGI(TAG, "timestamp null");
                 return;
             }
             uint64_t ts = atoi(timestamp);
@@ -710,17 +681,17 @@ void xv_mqtt_event_hanler(esp_mqtt_event_handle_t event)
 
             if(settimeofday(&tv, NULL) < 0)
             {
-                printf("Update machine date failed.\n");
+                ESP_LOGI(TAG, "Update machine date failed.");
                 break;
             }
-            printf("Update machine date done.\n");
+            ESP_LOGI(TAG, "Update machine date done.");
             break;
         }
         case XV_GW_UPDATE_LOCK_LIST:
         {
             if (g_ble_scaning)
             {
-                printf("Update Lock List, stop scanning.\n");
+                ESP_LOGI(TAG, "Update Lock List, stop scanning.");
                 esp_ble_gap_stop_scanning();
                 
             }
@@ -735,11 +706,11 @@ void xv_mqtt_event_hanler(esp_mqtt_event_handle_t event)
                 {
                     next = (device_sn_tmp + strlen(device_sn_tmp) + 1);
                     strcpy(tmp_lock_list[k], device_sn_tmp);
-                    // printf("tmp: %s\n", tmp_lock_list[k]);
+                    // ESP_LOGI(TAG, "tmp: %s", tmp_lock_list[k]);
                 }
                 else
                 {
-                    printf("Update list lock count: %d.\n", k);
+                    ESP_LOGI(TAG, "Update list lock count: %d.", k);
                     break;
                 }
 
@@ -766,7 +737,7 @@ void xv_mqtt_event_hanler(esp_mqtt_event_handle_t event)
                         if (0 != g_device_list[j].sn[0])
                         {
                             char tmp_sn[15] = {0};
-                            printf("Lock %s be delete.\n", g_device_list[j].sn);
+                            ESP_LOGI(TAG, "Lock %s be delete.", g_device_list[j].sn);
                             strcpy(tmp_sn, g_device_list[j].sn);
                             memset(&g_device_list[j], 0, sizeof(g_device_list[j]));
                             // Remove devices in whitelist
@@ -781,7 +752,7 @@ void xv_mqtt_event_hanler(esp_mqtt_event_handle_t event)
                             esp_err_t ret = esp_ble_gap_update_whitelist(false, tmp_bda, BLE_WL_ADDR_TYPE_PUBLIC);
                             if (ret != ESP_OK)
                             {
-                                printf("Remove lock in white list failed.\n");
+                                ESP_LOGI(TAG, "Remove lock in white list failed.");
                             }
                         }
                     }
@@ -789,7 +760,7 @@ void xv_mqtt_event_hanler(esp_mqtt_event_handle_t event)
             }
             else
             {
-                printf("Down lock list is null, delete all lock.\n");
+                ESP_LOGI(TAG, "Down lock list is null, delete all lock.");
                 // Clear White list
                 // esp_ble_gap_clear_whitelist();
                 memset(&g_device_list, 0, sizeof(g_device_list));
@@ -805,7 +776,7 @@ void xv_mqtt_event_hanler(esp_mqtt_event_handle_t event)
                         flag = 0;
                         if (ble_device_check(&g_device_list[m], (uint8_t *) tmp_lock_list[i]))
                         {
-                            printf("Lock %.*s already exists.\n", BLE_NAME_LEN,tmp_lock_list[i]);
+                            ESP_LOGI(TAG, "Lock %.*s already exists.", BLE_NAME_LEN,tmp_lock_list[i]);
                             flag = 1;
                             break;
                         }
@@ -817,7 +788,7 @@ void xv_mqtt_event_hanler(esp_mqtt_event_handle_t event)
                         {
                             if(0 == g_device_list[k].sn[0])
                             {
-                                printf("Lock %.*s no exists, add in list.\n", BLE_NAME_LEN, tmp_lock_list[i]);
+                                ESP_LOGI(TAG, "Lock %.*s no exists, add in list.", BLE_NAME_LEN, tmp_lock_list[i]);
                                 ble_device_init(&g_device_list[k], tmp_lock_list[i]);
                                 // add devices in whitelist
                                 uint8_t tmp_bda[6];
@@ -831,7 +802,7 @@ void xv_mqtt_event_hanler(esp_mqtt_event_handle_t event)
                                 esp_err_t ret = esp_ble_gap_update_whitelist(true, tmp_bda, BLE_WL_ADDR_TYPE_PUBLIC);
                                 if (ret != ESP_OK)
                                 {
-                                    printf("Add lock in white list failed.\n");
+                                    ESP_LOGI(TAG, "Add lock in white list failed.");
                                 }
                                 break;
                             }
@@ -844,27 +815,27 @@ void xv_mqtt_event_hanler(esp_mqtt_event_handle_t event)
                     break;
                 }
             }
-            printf("Update lock list done.\n");
+            ESP_LOGI(TAG, "Update lock list done.");
             break;
         }
         case XV_GW_OTA :
         {
             char *ota_url = json_get_str(next, "url");
             if(ota_url){
-                printf("ota_url:%s\n", ota_url);
+                ESP_LOGI(TAG, "ota_url:%s", ota_url);
                 next = (ota_url + strlen(ota_url) + 1);
             }
             else{
-                printf("ota_url null\n");
+                ESP_LOGI(TAG, "ota_url null");
                 return;
             }
             char *version = json_get_uint(next, "version");
             if(version){
-                printf("OTA VERSION:%d\n", g_version);
+                ESP_LOGI(TAG, "OTA VERSION:%d", g_version);
                 next = (version + strlen(version) + 1);
             }
             else{
-                printf("OTA VERSION NULL.\n");
+                ESP_LOGI(TAG, "OTA VERSION NULL.");
                 return;
             }
             if (g_version != atoi(version))
@@ -875,19 +846,19 @@ void xv_mqtt_event_hanler(esp_mqtt_event_handle_t event)
             else
             {
                 // response mqtt
-                printf("New version is the same as invalid version.\n");
+                ESP_LOGI(TAG, "New version is the same as invalid version.");
             }
             break;
         }
         case XV_GW_REMOTE_RESTART:
         {
-            printf("******************REMOTE RESTART GATEWAY.*******************\n");
+            ESP_LOGI(TAG, "******************REMOTE RESTART GATEWAY.*******************");
             if(json_start())
             {
                 json_put_int("command", XV_GW_REMOTE_RESTART);
                 json_end();
                 char *buffer = json_buffer();
-                printf("Publish Restart Done: %s\n", buffer);
+                ESP_LOGI(TAG, "Publish Restart Done: %s", buffer);
                 esp_mqtt_client_publish(g_mqtt_client, g_topic_up, buffer, 0, QOS0, 0);
             }
             esp_restart();
@@ -941,7 +912,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 		// server topic subscribe public
         msg_id = esp_mqtt_client_subscribe(g_mqtt_client, "public", QOS1);
         ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
-        printf("Public and Private Topic subscribe successfull.\n");
+        ESP_LOGI(TAG, "Public and Private Topic subscribe successfull.");
 
         // DEV connect server suuces, send data ask server devOnline
         if(json_start())
@@ -954,7 +925,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             char *buffer = json_buffer();
             esp_mqtt_client_publish(g_mqtt_client, g_topic_up, buffer, 0, QOS1, 0);
         }
-        printf("Sent Update Time publish successful, msg_id=%d\n", msg_id);
+        ESP_LOGI(TAG, "Sent Update Time publish successful, msg_id=%d", msg_id);
 
         // vTaskDelay(2000 / portTICK_RATE_MS);
 
@@ -969,7 +940,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             char *buffer = json_buffer();
             esp_mqtt_client_publish(g_mqtt_client, g_topic_up, buffer, 0, QOS1, 0);
         }
-        printf("Sent Update Lock list publish successful, msg_id=%d\n", msg_id);
+        ESP_LOGI(TAG, "Sent Update Lock list publish successful, msg_id=%d", msg_id);
 
         break;
     case MQTT_EVENT_DISCONNECTED:
@@ -987,12 +958,12 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         ESP_LOGI(TAG, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
         break;
     case MQTT_EVENT_PUBLISHED:
-        ESP_LOGI(TAG, "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
+        // ESP_LOGI(TAG, "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
         break;
     case MQTT_EVENT_DATA:
         ESP_LOGI(TAG, "MQTT_EVENT_DATA");
-        printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
-        printf("DATA=%.*s\r\n", event->data_len, event->data);
+        ESP_LOGI(TAG, "TOPIC=%.*s", event->topic_len, event->topic);
+        ESP_LOGI(TAG, "DATA=%.*s", event->data_len, event->data);
 
         xv_mqtt_event_hanler(event);
 
@@ -1314,7 +1285,7 @@ static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
     {
         get_server = false;
         ESP_LOGI(TAG, "ESP_GATTC_DISCONNECT_EVT, reason = %d", p_data->disconnect.reason);
-        printf("Gattc disconnect done.\n");
+        ESP_LOGI(TAG, "Gattc disconnect done.");
         ble_empty_cmd_data();
         break;
     }
@@ -1342,11 +1313,11 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
         if (param->scan_start_cmpl.status != ESP_BT_STATUS_SUCCESS)
         {
             ESP_LOGE(TAG, "scan start failed, error status = %x", param->scan_start_cmpl.status);
-            printf("****************Scan start Fail, Gateway restart.*****************\n");
+            ESP_LOGI(TAG, "****************Scan start Fail, Gateway restart.*****************");
             esp_restart();
             break;
         }
-        ESP_LOGI(TAG, "scan start success");
+        // ESP_LOGI(TAG, "scan start success");
         g_ble_scaning = true;
 
         break;
@@ -1368,9 +1339,10 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
             {
                 g_mi_band_rssi = scan_result->scan_rst.rssi;
                 sprintf(rssi_str, " %d", g_mi_band_rssi);
-                ssd1306_display_text_x3(&dev, 3, rssi_str, 5, false);
-                // char band[] = "Mi Smart Band 6";
-                // printf("Device name: %s, RSSI: %d\n", band, g_mi_band_rssi);
+                ssd1306_display_text_x3(&dev, 5, rssi_str, 5, false);
+                nowTime();
+                char band[] = "Mi Smart Band 6";
+                ESP_LOGD(TAG, "Device name: %s, RSSI: %d", band, g_mi_band_rssi);
                 // // UPDATE SUB LOCK LIST/
                 // if(json_start())
                 // {
@@ -1387,11 +1359,11 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
             if (adv_name != NULL
                 && memcmp(adv_name, "TM", 2) == 0)
             {
-                // printf("scaned drived name: %s\n", adv_name);
+                // printf("scaned drived name: %s", adv_name);
 
                 if(strlen((char*)adv_name) > BLE_NAME_LEN){
                     adv_name += (strlen((char*)adv_name) - BLE_NAME_LEN);
-                   //printf("device_name more: %s\n", adv_name);
+                   //printf("device_name more: %s", adv_name);
                 }
                 for (int i = 0; i < XV_LOCK_LIST_LENGTH; i++)
                 {
@@ -1399,8 +1371,8 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
                         && ble_device_check(&g_device_list[i], adv_name))
                     {
                         ble_device_set_dev(&g_device_list[i], scan_result);
-                        printf("Device name: %s, RSSI: %d\n", adv_name, scan_result->scan_rst.rssi);
-                        // printf("********************NowTimeStamp: %lld********************\n", nowTimeStamp());
+                        ESP_LOGI(TAG, "Device name: %s, RSSI: %d", adv_name, scan_result->scan_rst.rssi);
+                        // ESP_LOGI(TAG, "********************NowTimeStamp: %lld********************", nowTimeStamp());
                         g_device_list[i].checked = true;
                         g_device_list[i].rssi = scan_result->scan_rst.rssi;
                         // lock have message to report
@@ -1416,7 +1388,7 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
                         g_device_list[i].online = true;
                     }
                     else{
-                        ;//printf("device_name not: %s\n", adv_name);
+                        ;//ESP_LOGI(TAG, "device_name not: %s", adv_name);
                     }
                 }
             }
@@ -1426,9 +1398,7 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
         {
             
             char band[] = "Mi Smart Band 6";
-            sprintf(rssi_str, " %d", g_mi_band_rssi);
-            ssd1306_display_text_x3(&dev, 3, rssi_str, 5, false);
-            printf("Device name: %s, RSSI: %d\n", band, g_mi_band_rssi);
+            ESP_LOGI(TAG, "Device name: %s, RSSI: %d", band, g_mi_band_rssi);
             // UPDATE SUB LOCK LIST/
             if(json_start())
             {
@@ -1441,7 +1411,7 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
                 esp_mqtt_client_publish(g_mqtt_client, g_topic_up, buffer, 0, QOS1, 0);
             }
             g_mi_band_rssi = 0;
-            // printf("****************End of one scan cycle.*****************\n");
+            // ESP_LOGI(TAG, "****************End of one scan cycle.*****************");
             /*
             g_mi_band_rssi = 0;
             for (int i = 0; i < XV_LOCK_LIST_LENGTH; i++)
@@ -1553,8 +1523,8 @@ void check_lock_data()
     {
         if (g_device_list[i].has_data)
         {
-            printf("********************check_data********************\n");
-            printf("Has data lock sn: %s\n", g_device_list[i].sn);
+            ESP_LOGI(TAG, "********************check_data********************");
+            ESP_LOGI(TAG, "Has data lock sn: %s", g_device_list[i].sn);
             memset(g_buffer_set, 0, MSG_MAX_BUFFER);
             msg_open *open = (msg_open * )g_buffer_set;
             open->command = XV_GW_OPEN_LOG;
@@ -1570,10 +1540,10 @@ void ble_scan()
     ble_is_connected = false;
     esp_ble_gattc_close(gattc_if_gb, gl_profile_tab[PROFILE_A_APP_ID].conn_id);
     esp_ble_gap_disconnect(p_data_gb->connect.remote_bda);
-    // printf("begin esp_ble_gap_start_scanning\n");
+    // ESP_LOGI(TAG, "begin esp_ble_gap_start_scanning");
     if(!g_ble_scaning)
     {
-        // printf("esp_ble_gap_start_scanning...\n");
+        // ESP_LOGI(TAG, "esp_ble_gap_start_scanning...");
         for (int i = 0; i < XV_LOCK_LIST_LENGTH; i++){
             g_device_list[i].checked = 0;
             g_device_list[i].rssi = 0;
@@ -1587,7 +1557,7 @@ void ble_scan()
 void send_heart_beast()
 {
     // char band[] = "Mi Smart Band 6";
-    // printf("Device name: %s, RSSI: %d\n", band, g_mi_band_rssi);
+    // ESP_LOGI(TAG, "Device name: %s, RSSI: %d", band, g_mi_band_rssi);
     // // UPDATE SUB LOCK LIST/
     // if(json_start())
     // {
@@ -1643,7 +1613,7 @@ void task_lock_list_maintain(void *param)
             // level 1
             if(0 != g_msg_cmd)
             {
-                printf("Connect to the lock %d times.\n", check_times);
+                ESP_LOGI(TAG, "Connect to the lock %d times.", check_times);
                 ++ check_times;
                 if(check_times >= 10)
                 {
@@ -1652,7 +1622,7 @@ void task_lock_list_maintain(void *param)
 
                     // Lock Offline report
                     ble_empty_cmd_data();
-                    printf("Ble data wait timeout.\n");
+                    ESP_LOGI(TAG, "Ble data wait timeout.");
 
                     ble_is_connected = false;
                     esp_ble_gattc_close(gattc_if_gb, gl_profile_tab[PROFILE_A_APP_ID].conn_id);
@@ -1663,7 +1633,7 @@ void task_lock_list_maintain(void *param)
             {
                 g_ble_scan_count += 1;
                 check_times = 0;
-                // printf("ssssss: %d-%d-%d\n", g_ble_scan_count, g_ble_scaning? 1:0, g_scan_max);
+                // ESP_LOGI(TAG, "ssssss: %d-%d-%d", g_ble_scan_count, g_ble_scaning? 1:0, g_scan_max);
                 if(g_scan_max >= 15){
                     g_scan_max = 15;
                 }
@@ -1678,14 +1648,14 @@ void task_lock_list_maintain(void *param)
                     if(g_ble_scan_count == 1 || !g_ble_scaning){
                         ble_scan();
                     }
-                    // printf("scan time: %d-%d\n", g_ble_scan_count, g_ble_scaning? 1:0);
+                    // ESP_LOGI(TAG, "scan time: %d-%d", g_ble_scan_count, g_ble_scaning? 1:0);
                 }
                 // leve 3
                 else
                 {
                     if(g_ble_scaning)
                     {
-                        printf("esp_ble_gap_stop_scanning: %d\n", n);
+                        ESP_LOGI(TAG, "esp_ble_gap_stop_scanning: %d", n);
                         esp_ble_gap_stop_scanning();
                         g_ble_scaning = false;
                     }
@@ -1714,25 +1684,25 @@ void task_lock_list_maintain(void *param)
                         }
                         if(pdevice)
                         {
-                            printf("Lock SN: %s\n", pdevice->sn);
+                            ESP_LOGI(TAG, "Lock SN: %s", pdevice->sn);
                             // static key init
                             for (int j = 12; j < 16; j++){
                                 g_static_key[j] = 0;
                             }
-                            printf("Lock connectting...\n");
+                            ESP_LOGI(TAG, "Lock connectting...");
                             if(pdevice->set_dev){
                                 esp_ble_gattc_open(gattc_if_gb, pdevice->dev_cb.scan_rst.bda, pdevice->dev_cb.scan_rst.ble_addr_type, true);
                             }
                             else
                             {
-                                printf("Lock no scaned...\n");
+                                ESP_LOGI(TAG, "Lock no scaned...");
                                 // Lock data not set status 1
                                 ble_empty_cmd_data();
                             }
                         }
                         else
                         {
-                            printf("Lock no scaned...\n");
+                            ESP_LOGI(TAG, "Lock no scaned...");
                             // Get lock sn but not in list, report
                             ble_empty_cmd_data();
                         }
@@ -1759,42 +1729,42 @@ void BLE_init()
     esp_err_t ret = esp_bt_controller_init(&bt_cfg);
     if (ret)
     {
-        ESP_LOGE(TAG, "%s initialize controller failed: %s\n", __func__, esp_err_to_name(ret));
+        ESP_LOGE(TAG, "%s initialize controller failed: %s", __func__, esp_err_to_name(ret));
         return;
     }
     ret = esp_bt_controller_enable(ESP_BT_MODE_BLE);
     if (ret)
     {
-        ESP_LOGE(TAG, "%s enable controller failed: %s\n", __func__, esp_err_to_name(ret));
+        ESP_LOGE(TAG, "%s enable controller failed: %s", __func__, esp_err_to_name(ret));
         return;
     }
 
     ret = esp_bluedroid_init();
     if (ret)
     {
-        ESP_LOGE(TAG, "%s init bluetooth failed: %s\n", __func__, esp_err_to_name(ret));
+        ESP_LOGE(TAG, "%s init bluetooth failed: %s", __func__, esp_err_to_name(ret));
         return;
     }
 
     ret = esp_bluedroid_enable();
     if (ret)
     {
-        ESP_LOGE(TAG, "%s enable bluetooth failed: %s\n", __func__, esp_err_to_name(ret));
+        ESP_LOGE(TAG, "%s enable bluetooth failed: %s", __func__, esp_err_to_name(ret));
         return;
     }
     // BT TX POWER SETTIN
     ret = esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, ESP_PWR_LVL_P9);
     if (ret) {
-        ESP_LOGE(TAG, "%s Unable to set BLE Tx power level\n", __func__);
+        ESP_LOGE(TAG, "%s Unable to set BLE Tx power level", __func__);
         return;
     }
-    ESP_LOGI(TAG, "%s Successfully set BLE Tx power level\n", __func__);
+    ESP_LOGI(TAG, "%s Successfully set BLE Tx power level", __func__);
 
     // register the  callback function to the gap module
     ret = esp_ble_gap_register_callback(esp_gap_cb);
     if (ret)
     {
-        ESP_LOGE(TAG, "%s gap register failed, error code = %x\n", __func__, ret);
+        ESP_LOGE(TAG, "%s gap register failed, error code = %x", __func__, ret);
         return;
     }
 
@@ -1802,14 +1772,14 @@ void BLE_init()
     ret = esp_ble_gattc_register_callback(esp_gattc_cb);
     if (ret)
     {
-        ESP_LOGE(TAG, "%s gattc register failed, error code = %x\n", __func__, ret);
+        ESP_LOGE(TAG, "%s gattc register failed, error code = %x", __func__, ret);
         return;
     }
 
     ret = esp_ble_gattc_app_register(PROFILE_A_APP_ID);
     if (ret)
     {
-        ESP_LOGE(TAG, "%s gattc app register failed, error code = %x\n", __func__, ret);
+        ESP_LOGE(TAG, "%s gattc app register failed, error code = %x", __func__, ret);
     }
     esp_err_t local_mtu_ret = esp_ble_gatt_set_local_mtu(128);
     if (local_mtu_ret)
@@ -1819,26 +1789,26 @@ void BLE_init()
 
     esp_err_t err = esp_timer_create(&test_once_arg, &timer_once_hanle);
 
-    printf("Bluetimeout timer create %s", err == ESP_OK ? "ok.\r\n" : "failed.\r\n");
+    ESP_LOGI(TAG, "Bluetimeout timer create %s", err == ESP_OK ? "ok." : "failed.");
 }
 
 void rtc_wdt_init()
 {
     // RTC WATCH DOG INIT
-    // printf("Initialize RTCWDT\n");
+    // ESP_LOGI(TAG, "Initialize RTCWDT");
     rtc_wdt_protect_off();
     rtc_wdt_enable();
     rtc_wdt_feed();
     rtc_wdt_set_length_of_reset_signal(RTC_WDT_SYS_RESET_SIG, RTC_WDT_LENGTH_3_2us);
     rtc_wdt_set_stage(RTC_WDT_STAGE0, RTC_WDT_STAGE_ACTION_RESET_RTC);
-    rtc_wdt_set_time(RTC_WDT_STAGE0, 80000);
+    rtc_wdt_set_time(RTC_WDT_STAGE0, 90000);
     rtc_wdt_disable();
 
 }
 
 void network_config_init()
 {
-    printf("ESP_ETHERNET_MODE_STA \n");
+    ESP_LOGI(TAG, "ESP_ETHERNET_MODE_STA ");
     ethernet_init_sta();
 
     uint8_t connect_tick = 10;
@@ -1850,7 +1820,7 @@ void network_config_init()
         }
         if (1 == connect_tick)
         {
-            printf("ESP_WIFI_MODE_STA \n");
+            ESP_LOGI(TAG, "ESP_WIFI_MODE_STA ");
             wifi_init_sta();
         }
 
@@ -1867,7 +1837,7 @@ void mqtt_begin()
     memset(mac, 0, 32);
     // esp_read_mac(efuse_mac,ESP_MAC_ETH);
     esp_efuse_mac_get_default(efuse_mac);
-    sprintf(mac,"%01x%02x%02x%02x%02x%02x", 
+    sprintf(mac, "%01x%02x%02x%02x%02x%02x", 
         efuse_mac[0],
         efuse_mac[1],
         efuse_mac[2],
@@ -1877,7 +1847,7 @@ void mqtt_begin()
     ESP_LOGI(TAG, "[APP] Startup..");
     ESP_LOGI(TAG, "[APP] Free memory: %d bytes", esp_get_free_heap_size());
     ESP_LOGI(TAG, "[APP] IDF version: %s", esp_get_idf_version());
-    printf("********************Mac: %s ********************\n", mac);
+    ESP_LOGI(TAG, "********************Mac: %s ********************", mac);
 
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("MQTT_CLIENT", ESP_LOG_VERBOSE);
@@ -1918,7 +1888,7 @@ void app_main(void)
     // check firmware_version
     check_firmware_version();
     //ssd1306 init
-    xTaskCreate(display, "task_display", 1024 * 10, NULL, 5, NULL);
+    xTaskCreate(display_init, "task_display", 1024 * 10, NULL, 5, NULL);
     // button init
     xTaskCreate(key_trigger, "key_trigger", 1024 * 2, NULL, 10, NULL);
     // led init
@@ -1929,6 +1899,8 @@ void app_main(void)
     // Network Config Initialize
     // network_config_init();
     wifi_init_sta();
+    //sntp
+    sntp_start();
     // RTC watch dog initialization
     rtc_wdt_init();
     // show mac and start mqtt
