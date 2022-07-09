@@ -18,6 +18,7 @@
 #define GPIO_LED_NUM 33
 
 void led_init();
+void display();
 void led_flicker();
 
 #endif

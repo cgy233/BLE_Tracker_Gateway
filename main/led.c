@@ -15,8 +15,10 @@
 #include "errno.h"
 
 #include "led.h"
+#include "ssd1306.h"
 
 extern uint8_t g_led_flag;
+extern SSD1306_t dev;
 
 void led_init(void)
 {
@@ -43,6 +45,30 @@ void led_init(void)
     gpio_set_level(GPIO_LED_POWERED_NUM, 1);        /* 红灯默认熄灭 */
     gpio_set_level(GPIO_LED_NUM, 0);        /* 蓝灯默认熄灭 */
 	
+}
+
+/**
+ * @description: display for ssd1306
+ * @param {*}
+ * @return {*}
+ */
+void display()
+{
+	spi_master_init(&dev, CONFIG_MOSI_GPIO, CONFIG_SCLK_GPIO, CONFIG_CS_GPIO, CONFIG_DC_GPIO, CONFIG_RESET_GPIO);
+	ssd1306_init(&dev, 128, 64);
+    ssd1306_contrast(&dev, 0xff);
+	ssd1306_clear_screen(&dev, false);
+	ssd1306_display_text_x3(&dev, 0, "ETHAN", 5, false);
+	ssd1306_display_text_x3(&dev, 3, "ESP32", 5, false);
+    vTaskDelay(3000 / portTICK_RATE_MS);
+	ssd1306_clear_screen(&dev, false);
+	ssd1306_display_text_x3(&dev, 0, "|RSSI", 5, false);
+    ssd1306_display_text_x3(&dev, 3, "|000|", 5, false);
+
+    while(1)
+    {
+        vTaskDelay(50 / portTICK_PERIOD_MS);   /* 延时500ms*/
+    }
 }
 
 /**

@@ -65,6 +65,8 @@
 #include "ota.h"
 #include "ethernet.h"
 #include "ping_baidu.h"
+#include "ssd1306.h"
+
 
 #define TAG "XV_SPUER_GW"
 #define REMOTE_SERVICE_UUID 0xFFF0
@@ -91,6 +93,9 @@ typedef unsigned char byte;
 #define XV_GW_REMOTE_HEART_BEAST 5
 #define XV_GW_REMOTE_RESTART 6
 #define XV_LOCK_LIST_LENGTH 8 // Lock count
+
+SSD1306_t dev;
+char rssi_str[5];
 
 int g_mi_band_rssi = 0;
 
@@ -1362,6 +1367,8 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
             if (adv_name != NULL)
             {
                 g_mi_band_rssi = scan_result->scan_rst.rssi;
+                sprintf(rssi_str, " %d", g_mi_band_rssi);
+                ssd1306_display_text_x3(&dev, 3, rssi_str, 5, false);
                 // char band[] = "Mi Smart Band 6";
                 // printf("Device name: %s, RSSI: %d\n", band, g_mi_band_rssi);
                 // // UPDATE SUB LOCK LIST/
@@ -1390,7 +1397,6 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
                 {
                     if(g_device_list[i].sn[0]
                         && ble_device_check(&g_device_list[i], adv_name))
-                    //if (strlen(remote_device_list[i]) == adv_name_len && strncmp((char *)adv_name, remote_device_list[i], adv_name_len) == 0)
                     {
                         ble_device_set_dev(&g_device_list[i], scan_result);
                         printf("Device name: %s, RSSI: %d\n", adv_name, scan_result->scan_rst.rssi);
@@ -1420,6 +1426,8 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
         {
             
             char band[] = "Mi Smart Band 6";
+            sprintf(rssi_str, " %d", g_mi_band_rssi);
+            ssd1306_display_text_x3(&dev, 3, rssi_str, 5, false);
             printf("Device name: %s, RSSI: %d\n", band, g_mi_band_rssi);
             // UPDATE SUB LOCK LIST/
             if(json_start())
@@ -1909,6 +1917,8 @@ void app_main(void)
     nvs_init();
     // check firmware_version
     check_firmware_version();
+    //ssd1306 init
+    xTaskCreate(display, "task_display", 1024 * 10, NULL, 5, NULL);
     // button init
     xTaskCreate(key_trigger, "key_trigger", 1024 * 2, NULL, 10, NULL);
     // led init
@@ -1927,5 +1937,4 @@ void app_main(void)
     BLE_init();
     // Hearbeat lock data report check 
     xTaskCreate(task_lock_list_maintain, "task_lock_list_maintain", 1024 * 10, NULL, 5, NULL);
-    
 }
