@@ -8,6 +8,7 @@
 #include <time.h>
 
 #include "ssd1306.h"
+#include "sntp.h"
 
 extern SSD1306_t dev;
 /**
@@ -25,7 +26,8 @@ void display_init()
 	ssd1306_display_text_x3(&dev, 5, "ESP32", 5, false);
     vTaskDelay(3000 / portTICK_RATE_MS);
 	ssd1306_clear_screen(&dev, false);
-	ssd1306_display_text_x3(&dev, 2, "|RSSI", 5, false);
+	ssd1306_display_text(&dev, 1, "----------------", 16, false);
+	ssd1306_display_text_x3(&dev, 2, "MRSSI", 5, false);
     ssd1306_display_text_x3(&dev, 5, "|000|", 5, false);
 
     // ESP_LOGI(TAG, "The current date/time in Shanghai is: %s", strftime_buf);
@@ -33,6 +35,7 @@ void display_init()
     while(1)
     {
         vTaskDelay(200 / portTICK_PERIOD_MS);   /* 延时200ms*/
+		nowTime();
 		// localtime_r(&now, &timeinfo);
 		// time(&now);
 		// // Set timezone to China Standard Time
