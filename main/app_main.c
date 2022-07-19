@@ -136,6 +136,8 @@ static uint32_t duration = 15; // Scanning period
 
 msg_base *g_msg_cmd = 0;
 
+char rssi_str[5];
+
 // Lock list Attribute
 typedef struct {
 	char	        sn[15];
@@ -1471,11 +1473,14 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
             if (adv_name != NULL)
             {
                 g_mi_band_rssi = scan_result->scan_rst.rssi;
+                if (g_mi_band_rssi < 0)
+                {
+                    g_mi_band_rssi = ~g_mi_band_rssi;
+                }
                 // sprintf(rssi_str, " %d", g_mi_band_rssi);
                 // ssd1306_display_text_x3(&dev, 5, rssi_str, 5, false);
-                // nowTime();
-                // char band[] = "Mi Smart Band 6";
-                // ESP_LOGD(TAG, "Device name: %s, RSSI: %d", band, g_mi_band_rssi);
+                char band[] = "Mi Smart Band 6";
+                ESP_LOGD(TAG, "Device name: %s, RSSI: %d", band, g_mi_band_rssi);
                 // // UPDATE SUB LOCK LIST/
                 // if(json_start())
                 // {
@@ -1531,8 +1536,10 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
         {
             
             char band[] = "Mi Smart Band 6";
-            ESP_LOGD(TAG, "Device name: %s, RSSI: %d", band, g_mi_band_rssi);
-            // Upload RSSI
+            sprintf(rssi_str, "%ddBm", g_mi_band_rssi);
+            ssd1306_display_text_x3(&dev, 5, rssi_str, 5, false);
+            ESP_LOGI(TAG, "Device name: %s, RSSI: %d", band, g_mi_band_rssi);
+            // UPDATE SUB LOCK LIST/
             if(json_start())
             {
                 json_put_string("device_name", band);

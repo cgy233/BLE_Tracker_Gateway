@@ -18,6 +18,7 @@
 #include "esp_attr.h"
 #include "esp_sntp.h"
 #include "ssd1306.h"
+#include "sntp.h"
 
 static const char *TAG = "SNTP";
 
