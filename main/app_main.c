@@ -69,6 +69,9 @@
 #include "display.h"
 #include "sntp.h"
 
+#include "driver/adc.h"
+#include "esp_adc_cal.h"
+
 
 #define TAG "XV_SPUER_GW"
 #define REMOTE_SERVICE_UUID 0xFFF0
@@ -95,6 +98,15 @@ typedef unsigned char byte;
 #define XV_GW_REMOTE_HEART_BEAST 5
 #define XV_GW_REMOTE_RESTART 6
 #define XV_LOCK_LIST_LENGTH 8 // Lock count
+
+#define DEFAULT_VREF    1100        //Use adc2_vref_to_gpio() to obtain a better estimate
+#define NO_OF_SAMPLES   64          //Multisampling
+
+static esp_adc_cal_characteristics_t *adc_chars;
+static const adc_channel_t channel = ADC_CHANNEL_6;     //GPIO34 if ADC1, GPIO14 if ADC2
+static const adc_bits_width_t width = ADC_WIDTH_BIT_12;
+static const adc_atten_t atten = ADC_ATTEN_DB_6;
+static const adc_unit_t unit = ADC_UNIT_1;
 
 SSD1306_t dev;
 char rssi_str[5];
@@ -296,6 +308,64 @@ msg_base* msg_get()
 		}
 	}
 	return 0;
+}
+
+static void print_char_val_type(esp_adc_cal_value_t val_type)
+{
+    if (val_type == ESP_ADC_CAL_VAL_EFUSE_TP) {
+        printf("Characterized using Two Point Value\n");
+    } else if (val_type == ESP_ADC_CAL_VAL_EFUSE_VREF) {
+        printf("Characterized using eFuse Vref\n");
+    } else {
+        printf("Characterized using Default Vref\n");
+    }
+}
+
+void soid_humidity()
+{
+	    //Configure ADC
+    if (unit == ADC_UNIT_1) {
+        adc1_config_width(width);
+        adc1_config_channel_atten(channel, atten);
+    } else {
+        adc2_config_channel_atten((adc2_channel_t)channel, atten);
+    }
+
+    //Characterize ADC
+    adc_chars = calloc(1, sizeof(esp_adc_cal_characteristics_t));
+    esp_adc_cal_value_t val_type = esp_adc_cal_characterize(unit, atten, width, DEFAULT_VREF, adc_chars);
+    print_char_val_type(val_type);
+
+    //Continuously sample ADC1
+    while (1) {
+        uint32_t adc_reading = 0;
+        //Multisampling
+        for (int i = 0; i < NO_OF_SAMPLES; i++) {
+            if (unit == ADC_UNIT_1) {
+                adc_reading += adc1_get_raw((adc1_channel_t)channel);
+            } else {
+                int raw;
+                adc2_get_raw((adc2_channel_t)channel, width, &raw);
+                adc_reading += raw;
+            }
+        }
+        adc_reading /= NO_OF_SAMPLES;
+        //Convert adc_reading to voltage in mV
+        uint32_t voltage = esp_adc_cal_raw_to_voltage(adc_reading, adc_chars);
+        printf("Raw: %d\tVoltage: %dmV\n", adc_reading, voltage);
+		if(json_start())
+		{
+			json_put_int("raw", adc_reading);
+			json_split();
+			json_put_int("voltage", voltage);
+			
+			json_end();
+			char *buffer_ = json_buffer();
+			esp_mqtt_client_publish(g_mqtt_client, "soil", buffer_, 0, 0, 0);
+		}
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+
 }
 
 /**
@@ -1914,4 +1984,6 @@ void app_main(void)
     BLE_init();
     // Hearbeat lock data report check 
     xTaskCreate(task_lock_list_maintain, "task_lock_list_maintain", 1024 * 10, NULL, 5, NULL);
+    // Soid humidity reader
+    // xTaskCreate(soid_humidity, "task_soid_read", 1024 * 10, NULL, 5, NULL);
 }
