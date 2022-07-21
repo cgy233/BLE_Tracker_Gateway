@@ -8,6 +8,7 @@ typedef enum {
     AUTO_MODE = 0,
     COOL_MODE,
     DRY_MODE,
+    SLEEP_MODE,
     ECO_MODE,
     HEAT_MODE
 }AC_MODE;

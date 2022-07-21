@@ -39,6 +39,9 @@ static rmt_item32_t *items = NULL;
 static uint32_t length = 0;
 static ir_builder_t *ir_builder = NULL;
 
+extern uint8_t eco_flag;
+extern uint8_t sleep_flag;
+
 const uint8_t kCoolixTempMap[kCoolixTempRange] = {
     0b0000,  // 17C
     0b0001,  // 18c
@@ -94,7 +97,6 @@ void ac_send_r05d_code(AC_INFO ac_info)
     };
     /* 默认识别码 */
     send_code.A = 0xB2;
-    send_code.A_ = ~send_code.A;
     if (ac_info.on == true)     // 开机前提下
     {
         /* 风速代码 B7 B6 B5 */
@@ -150,11 +152,31 @@ void ac_send_r05d_code(AC_INFO ac_info)
         case DRY_MODE:
             send_code.C |= kCoolixDry << 2;
             break;
+        case SLEEP_MODE:
+            send_code.A = 0xB9;
+            send_code.B = 0xF5;
+            if (sleep_flag)
+            {
+                send_code.C = 0x5C;
+            }
+            else
+            {
+                send_code.C = 0x5B;
+            }
+            sleep_flag = ~sleep_flag;
+            break;
         case ECO_MODE:
             send_code.A = 0xB9;
-            send_code.A_ = ~send_code.A;
-            send_code.B = 0xAF;
-            send_code.C = 0x24;
+            send_code.B = 0xF5;
+            if (eco_flag)
+            {
+                send_code.C = 0x25;
+            }
+            else
+            {
+                send_code.C = 0x24;
+            }
+            eco_flag = ~eco_flag;
             break;
         case HEAT_MODE:
             send_code.C |= kCoolixHeat << 2;
@@ -170,6 +192,7 @@ void ac_send_r05d_code(AC_INFO ac_info)
         send_code.C = 0xE0;
     }
 
+    send_code.A_ = ~send_code.A;
     send_code.B_ = ~send_code.B;
     send_code.C_ = ~send_code.C;
 
