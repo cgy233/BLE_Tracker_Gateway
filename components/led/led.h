@@ -8,8 +8,8 @@
  * 
  * Copyright (c) 2022 by Ethan 1781387847@qq.com, All Rights Reserved. 
  */
-#ifndef __led__header__h__
-#define __led__header__h__
+#ifndef _LED_H_
+#define _LED_H_
 
 // WU
 // #define GPIO_LED_NUM 27

@@ -10,12 +10,10 @@
  */
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-
 #include "driver/gpio.h"
 #include "errno.h"
 
 #include "led.h"
-#include "ssd1306.h"
 
 extern uint8_t g_led_flag;
 

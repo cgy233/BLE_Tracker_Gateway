@@ -1,13 +1,3 @@
-/*
- * @Author: Ethan 1781387847@qq.com
- * @Date: 2022-06-02 11:10:35
- * @LastEditors: cgy233 1781387847@qq.com
- * @LastEditTime: 2022-06-11 10:15:23
- * @FilePath: \Ble_Tracker_Gateway\main\wifi_smartconfig.c
- * @Description: 
- * 
- * Copyright (c) 2022 by Ethan 1781387847@qq.com, All Rights Reserved. 
- */
 #include "nvs.h"
 #include "nvs_flash.h"
 #include "esp_log.h"

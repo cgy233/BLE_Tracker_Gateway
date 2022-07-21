@@ -190,6 +190,7 @@ static bool json_end()
 static char* json_buffer(){
 	return buffer;
 }
+#if 0
 //-------------------------------------------------------------------
 static char *json_get_str(char *json_data, const char *name)
 {
@@ -321,6 +322,7 @@ static char* json_get_uint(char *json_data, const char *name)
 	*ph = 0;
 	return value;
 }
+#endif
 /*
 static char *json_get_bool(char *json_data, const char *name)
 {

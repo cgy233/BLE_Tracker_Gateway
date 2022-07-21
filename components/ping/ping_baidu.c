@@ -14,9 +14,7 @@
 #include "lwip/inet.h"
 #include "lwip/netdb.h"
 #include "lwip/sockets.h"
-#include "esp_console.h"
 #include "esp_event.h"
-#include "nvs_flash.h"
 #include "argtable3/argtable3.h"
 #include "ping/ping_sock.h"
 

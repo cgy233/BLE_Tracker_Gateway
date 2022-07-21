@@ -1,4 +1,5 @@
-#ifndef __display_header_h__
+#ifndef _DISPLAY_H_
+#define _DISPLAY_H_
 
 void display_init();
 #endif

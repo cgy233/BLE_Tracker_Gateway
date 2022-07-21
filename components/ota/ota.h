@@ -1,5 +1,5 @@
-#ifndef __ota__header__h__
-#define __ota__header__h__
+#ifndef _OTA_H_
+#define _OTA_H_
 
 void check_firmware_version();
 void ota_init();

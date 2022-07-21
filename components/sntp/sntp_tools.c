@@ -17,12 +17,12 @@
 #include "esp_log.h"
 #include "esp_attr.h"
 #include "esp_sntp.h"
-#include "ssd1306.h"
+// #include "ssd1306.h"
 #include "sntp.h"
 
 static const char *TAG = "SNTP";
 
-extern SSD1306_t dev;
+// extern SSD1306_t dev;
 /* Variable holding number of times ESP32 restarted since first boot.
  * It is placed into RTC memory using RTC_DATA_ATTR and
  * maintains its value when ESP32 wakes from deep sleep.
@@ -68,7 +68,7 @@ void nowTime()
 	setenv("TZ", "CST-8", 1);
 	tzset();
 	strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);
-	ssd1306_display_text(&dev, 0, strftime_buf+4, sizeof(strftime_buf), false);
+	// ssd1306_display_text(&dev, 0, strftime_buf+4, sizeof(strftime_buf), false);
 }
 
 void time_sync_notification_cb(struct timeval *tv)
