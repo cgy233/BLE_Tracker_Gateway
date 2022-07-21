@@ -33,6 +33,8 @@
 #include "esp_system.h"
 #include "esp_event.h"
 #include "esp_task_wdt.h"
+#include "driver/adc.h"
+#include "esp_adc_cal.h"
 
 #include "esp_http_client.h"
 #include "esp_flash_partitions.h"
@@ -67,11 +69,9 @@
 #include "ethernet.h"
 #include "ping_baidu.h"
 #include "display.h"
-#include "sntp.h"
 #include "air_conditioner.h"
 
-#include "driver/adc.h"
-#include "esp_adc_cal.h"
+#include "sntp_tools.h"
 
 
 #define TAG "XV_SPUER_GW"

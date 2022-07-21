@@ -7,9 +7,8 @@
 #include <sys/time.h>
 #include <time.h>
 
-#include "sntp.h"
+#include "sntp_tools.h"
 #include "ssd1306.h"
-#include "sntp.h"
 
 extern int g_mi_band_rssi;
 extern SSD1306_t dev;

@@ -1,5 +1,5 @@
-#ifndef __stnp_h__
-#include "display.h"
+#ifndef _STNP_TOOLS_H_
+#define _STNP_TOOLS_H_
 
 void sntp_start(void);
 void nowTime(void);
