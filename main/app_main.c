@@ -68,6 +68,7 @@
 #include "ping_baidu.h"
 #include "display.h"
 #include "sntp.h"
+#include "air_conditioner.h"
 
 #include "driver/adc.h"
 #include "esp_adc_cal.h"
@@ -107,9 +108,14 @@ static const adc_channel_t channel = ADC_CHANNEL_6;     //GPIO34 if ADC1, GPIO14
 static const adc_bits_width_t width = ADC_WIDTH_BIT_12;
 static const adc_atten_t atten = ADC_ATTEN_DB_6;
 static const adc_unit_t unit = ADC_UNIT_1;
+// MQTT Parameter
+#define HOST_NAME "bemfa.com" 
+#define HOST_PORT 9501
+#define CLIENT_ID "2f13e215aec14d059745eb027aea6d47" 
+#define AIR_CMD 14 // Lock count
+#define TOPIC "Air005"
 
 SSD1306_t dev;
-char rssi_str[5];
 
 int g_mi_band_rssi = 0;
 
@@ -128,14 +134,10 @@ char g_buffer_list[MSG_MAX_COUNT][MSG_MAX_BUFFER];
 char g_buffer_set[MSG_MAX_BUFFER] = {0};
 char g_buffer_cmd[MSG_MAX_BUFFER] = {0};
 static int g_msg_last = 0;
-static int g_temp_cmd = -1;
 
 esp_mqtt_client_handle_t g_mqtt_client; // MQTT client handle
 
-// char g_topic_up[32] = {0};
-// char g_topic_down[34] = {0};
 char g_topic_up[32] = "esp32";
-char g_topic_down[34] = "hass";
 
 uint8_t g_pin[20] = {0x7f, 0x12, 0x0c, 0x8f, 0x92, 0x40, 0xb8, 0xc4, 0x53, 0x07, 0x3b, 0x42, 0x31, 0x51, 0xa8, 0x45, 0xdc, 0x7a, 0xfb, 0xbd}; // BLE Ping data
 uint8_t g_buf_send[32] = {0}; // BLE send data
@@ -144,6 +146,8 @@ byte g_dynamic_key[4] = {0}; // BLE dynamic key
 static uint32_t duration = 15; // Scanning period
 
 msg_base *g_msg_cmd = 0;
+
+char rssi_str[5];
 
 // Lock list Attribute
 typedef struct {
@@ -247,6 +251,14 @@ static struct gattc_profile_inst gl_profile_tab[PROFILE_NUM] = {
         .gattc_if = ESP_GATT_IF_NONE, /* Not get the gatt_if, so initial is ESP_GATT_IF_NONE */
     },
 };
+
+AC_INFO ac_current_info = {
+    .on = false,
+    .mode = AUTO_MODE,
+    .temp = 16,
+    .fan_speed = AUTO_FAN_SPEED
+};
+
 /**
  * @description: Clear global control command
  * @param {*}
@@ -373,6 +385,7 @@ void soid_humidity()
  * @param {char} v
  * @return {*}
  */
+/*
 static unsigned char hexToBCD(char v){return (v>='0'&&v<='9'?(v-'0'):(v>='a'&&v<='f'?(v-'a'+10):(v>='A'&&v<='F'?(v-'A'+10):0)));}
 int decTobcd(int decimal)
 {
@@ -384,6 +397,7 @@ int decTobcd(int decimal)
 	}
 	return sum;
 }
+*/
 
 // Wait BLE data timer
 esp_ble_gattc_cb_param_t *p_data_gb; 
@@ -432,7 +446,69 @@ void xv_mqtt_event_hanler(esp_mqtt_event_handle_t event)
     // Feed dog
     rtc_wdt_feed();
     esp_task_wdt_reset();
+    char temp[3];
     char *data = event->data;
+    // 开关#模式#温度
+    if (*data == 'o')
+    {
+        // ssd1306_display_text_x3(&dev, 2, "AirGO", 5, false);
+        if (*(data + 1) == 'n')
+        {
+            ac_current_info.on = true;
+            ESP_LOGE(TAG, "ON");
+            // 制冷模式时，消息为 on#2
+            if (*(data + 3) == '2')
+            {
+                ESP_LOGE(TAG, "COOL_MODE");
+                ac_current_info.mode = COOL_MODE;
+            }
+            // 制热模式时，消息为 on#3
+            else if (*(data + 3) == '3')
+            {
+                ESP_LOGE(TAG, "HEAT_MODE");
+                ac_current_info.mode = HEAT_MODE;
+            }
+            // 送风模式时，消息为 on#4
+            else if (*(data + 3) == '4')
+            {
+                ESP_LOGE(TAG, "SUPPLY_MODE");
+                ac_current_info.mode = DRY_MODE;
+                ac_current_info.temp = 31;
+                ac_send_r05d_code(ac_current_info);
+                return;
+            }
+            // 除湿模式时，消息为 on#5
+            else if (*(data + 3) == '5')
+            {
+                ESP_LOGE(TAG, "DRY_MODE");
+                ac_current_info.mode = DRY_MODE;
+            }
+            // 睡眠模式时，消息为 on#6
+            // else if (*(data + 3) == '6');
+            // 节能模式时，消息为 on#7
+            else if (*(data + 3) == '7')
+            {
+                ESP_LOGE(TAG, "ECO_MODE");
+                ac_current_info.mode = ECO_MODE;
+            }
+            // 温度为16度，消息为 on#模式位#16
+            memcpy(temp, data+5, 2);
+            char temp_str[5];
+            sprintf(temp_str, " %dC ", atoi(temp));
+            // ssd1306_display_text_x3(&dev, 5, temp_str, 5, false);
+            ESP_LOGE(TAG, "Temp: %d", atoi(temp));
+
+        }
+        else if(*(data +1) == 'f')
+        {
+            ac_current_info.on = false;
+            // ssd1306_display_text_x3(&dev, 5, " OFF ", 5, false);
+            ESP_LOGE(TAG, "OFF");
+        }
+        ac_current_info.temp = atoi(temp);
+        ac_send_r05d_code(ac_current_info);
+    }
+    /*
     uint8_t sub_cmd;
     if(!data
         || strlen(data) < 8){
@@ -934,6 +1010,66 @@ void xv_mqtt_event_hanler(esp_mqtt_event_handle_t event)
             esp_restart();
             break;
         }
+        case AIR_CMD:
+        {
+            // {"command": 14, "on": 0, "mode": 0, "temp": 26, "fan_speed": 0}
+            ESP_LOGI(TAG, "AirGO");
+            ssd1306_display_text_x3(&dev, 2, "AirGO", 5, false);
+            vTaskDelay(200 / portTICK_PERIOD_MS);    //延时500ms
+            char *on = json_get_uint(next, "on");
+            if(on){
+                ESP_LOGI(TAG, "on:%s", on);
+                next = (on + strlen(on) + 1);
+            }
+            else{
+                ESP_LOGI(TAG, "on null");
+                return;
+            }
+            char *mode = json_get_uint(next, "mode");
+            if(mode){
+                ESP_LOGI(TAG, "mode:%s", mode);
+                next = (mode + strlen(mode) + 1);
+            }
+            else{
+                ESP_LOGI(TAG, "Mode is NULL.");
+                return;
+            }
+            char *temp= json_get_uint(next, "temp");
+            if(temp){
+                ESP_LOGI(TAG, "temp:%s",temp);
+                next = (temp + strlen(temp) + 1);
+            }
+            else{
+                ESP_LOGI(TAG, "mode null");
+                return;
+            }
+            char *fan = json_get_uint(next, "fan_speed");
+            if(fan){
+                ESP_LOGI(TAG, "fan:%s", fan);
+                next = (fan+ strlen(fan) + 1);
+            }
+            else{
+                ESP_LOGI(TAG, "Fan NULL.");
+                return;
+            }
+            ac_current_info.temp = atoi(temp);
+            if (atoi(on) == 0)
+            {
+                ac_current_info.on = true;
+                char temp_str[5];
+                sprintf(temp_str, " %sC ", temp);
+                ssd1306_display_text_x3(&dev, 5, temp_str, 5, false);
+            }
+            else
+            {
+
+                ac_current_info.on = false;
+                ssd1306_display_text_x3(&dev, 5, " OFF ", 5, false);
+            }
+            ac_current_info.mode = atoi(mode);
+            ac_current_info.fan_speed = atoi(fan);
+            ac_send_r05d_code(ac_current_info);
+        }
         
         default:
         {
@@ -941,6 +1077,7 @@ void xv_mqtt_event_hanler(esp_mqtt_event_handle_t event)
         }
 
     }
+    */
 
 }
 
@@ -977,7 +1114,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         vTaskDelay(2000 / portTICK_RATE_MS);
 
 		// server topic subscribe previate
-        msg_id = esp_mqtt_client_subscribe(g_mqtt_client, g_topic_down, QOS1);
+        msg_id = esp_mqtt_client_subscribe(g_mqtt_client, TOPIC, QOS1);
         // vTaskDelay(2000 / portTICK_RATE_MS);
 		// server topic subscribe public
         msg_id = esp_mqtt_client_subscribe(g_mqtt_client, "public", QOS1);
@@ -1061,19 +1198,16 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
  */
 static void mqtt_app_start(char* mac)
 {
-    char client_id[41] = {0};
-    sprintf(client_id, "BLE_GATEWAY_%s", mac);
-    // sprintf(g_topic_up, "up_%s", mac);
-    // sprintf(g_topic_down, "down_%s", mac);
-    // MQTT CONFIG, client id is board mac.
     esp_mqtt_client_config_t mqtt_cfg = {
-        .host = "cyupi.top",
-        .port = 1883,
-        .username = "ethan",
-        .password = "cgy233..",
+        .host = HOST_NAME,
+        .port = HOST_PORT,
+        .client_id = CLIENT_ID
+        // .host = "cyupi.top",
+        // .port = 1883,
+        // .username = "ethan",
+        // .password = "cgy233..",
         // .host = "device.smartxwei.com",
         // .port = 8091,
-        // .client_id = client_id, 
     };
 
     g_mqtt_client = esp_mqtt_client_init(&mqtt_cfg);
@@ -1960,6 +2094,8 @@ void app_main(void)
 {
     // nvs init
     nvs_init();
+    //rmt init
+    air_conditioner_init();
     // check firmware_version
     check_firmware_version();
     //ssd1306 init
