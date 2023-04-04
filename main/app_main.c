@@ -104,11 +104,11 @@ static const adc_bits_width_t width = ADC_WIDTH_BIT_12;
 static const adc_atten_t atten = ADC_ATTEN_DB_6;
 static const adc_unit_t unit = ADC_UNIT_1;
 // MQTT Parameter
-#define HOST_NAME "bemfa.com" 
-#define HOST_PORT 9501
-#define CLIENT_ID "2f13e215aec14d059745eb027aea6d47" 
+#define HOST_NAME "cyupi.top" 
+#define HOST_PORT 1883
+#define CLIENT_ID "ethanhomeesp32kit" 
 #define AIR_CMD 14 // Lock count
-#define TOPIC "Air005"
+#define TOPIC "esp32/ethanhome/miband6"
 
 SSD1306_t dev;
 
@@ -132,7 +132,7 @@ static int g_msg_last = 0;
 
 esp_mqtt_client_handle_t g_mqtt_client; // MQTT client handle
 
-char g_topic_up[32] = "esp32";
+char g_topic_up[32] = "esp32/ethanhome/miband6";
 
 uint8_t g_pin[20] = {0x7f, 0x12, 0x0c, 0x8f, 0x92, 0x40, 0xb8, 0xc4, 0x53, 0x07, 0x3b, 0x42, 0x31, 0x51, 0xa8, 0x45, 0xdc, 0x7a, 0xfb, 0xbd}; // BLE Ping data
 uint8_t g_buf_send[32] = {0}; // BLE send data
@@ -540,11 +540,12 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     switch ((esp_mqtt_event_id_t)event_id) {
     case MQTT_EVENT_CONNECTED:
         g_led_flag = 1;
+		led_on();
         ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
         vTaskDelay(2000 / portTICK_RATE_MS);
 
 		// server topic subscribe previate
-        msg_id = esp_mqtt_client_subscribe(g_mqtt_client, TOPIC, QOS1);
+        // msg_id = esp_mqtt_client_subscribe(g_mqtt_client, TOPIC, QOS1);
         // vTaskDelay(2000 / portTICK_RATE_MS);
 		// server topic subscribe public
         msg_id = esp_mqtt_client_subscribe(g_mqtt_client, "public", QOS1);
@@ -582,6 +583,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         break;
     case MQTT_EVENT_DISCONNECTED:
         ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
+		led_off();
         g_led_flag = 0;
         // MQTT Disconnect, Reconnect wifi or restart system;
         break;
@@ -631,11 +633,11 @@ static void mqtt_app_start(char* mac)
     esp_mqtt_client_config_t mqtt_cfg = {
         .host = HOST_NAME,
         .port = HOST_PORT,
-        .client_id = CLIENT_ID
+        .client_id = CLIENT_ID,
         // .host = "cyupi.top",
         // .port = 1883,
-        // .username = "ethan",
-        // .password = "cgy233..",
+        .username = "hass",
+        .password = "cgy233..",
         // .host = "device.smartxwei.com",
         // .port = 8091,
     };
@@ -979,18 +981,28 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
                 // sprintf(rssi_str, " %d", g_mi_band_rssi);
                 // ssd1306_display_text_x3(&dev, 5, rssi_str, 5, false);
                 char band[] = "Mi Smart Band 6";
+				int confid = 0;
                 ESP_LOGD(TAG, "Device name: %s, RSSI: %d", band, g_mi_band_rssi);
-                // // UPDATE SUB LOCK LIST/
-                // if(json_start())
-                // {
-                //     json_put_string("device_name", band);
-                //     json_split();
-                //     json_put_int("rssi", g_mi_band_rssi);
-                    
-                //     json_end();
-                //     char *buffer = json_buffer();
-                //     esp_mqtt_client_publish(g_mqtt_client, g_topic_up, buffer, 0, QOS1, 0);
-                // }
+				if (g_mi_band_rssi < 90 && g_mi_band_rssi > 0)
+				{
+					confid = 100;
+				}
+				else
+				{
+					confid = 0;
+				}
+				// UPDATE SUB LOCK LIST/
+				if(json_start())
+				{
+					json_put_string("device_name", band);
+					json_split();
+					json_put_int("confidence", confid);
+					
+					json_end();
+					char *buffer = json_buffer();
+					esp_mqtt_client_publish(g_mqtt_client, g_topic_up, buffer, 0, QOS1, 0);
+				}
+
             }
 
             if (adv_name != NULL
@@ -1035,20 +1047,31 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
         {
             
             char band[] = "Mi Smart Band 6";
+			int confid = 0;
             sprintf(rssi_str, "%ddBm", g_mi_band_rssi);
-            ssd1306_display_text_x3(&dev, 5, rssi_str, 5, false);
+            // ssd1306_display_text_x3(&dev, 5, rssi_str, 5, false);
             ESP_LOGI(TAG, "Device name: %s, RSSI: %d", band, g_mi_band_rssi);
             // UPDATE SUB LOCK LIST/
-            if(json_start())
-            {
-                json_put_string("device_name", band);
-                json_split();
-                json_put_int("rssi", g_mi_band_rssi);
-                
-                json_end();
-                char *buffer = json_buffer();
-                esp_mqtt_client_publish(g_mqtt_client, g_topic_up, buffer, 0, QOS1, 0);
-            }
+			if (g_mi_band_rssi < 90 && g_mi_band_rssi > 0)
+			{
+				confid = 100;
+			}
+			else
+			{
+				confid = 0;
+			}
+			// UPDATE SUB LOCK LIST/
+			if(json_start())
+			{
+				json_put_string("device_name", band);
+				json_split();
+				json_put_int("confidence", confid);
+				
+				json_end();
+				char *buffer = json_buffer();
+				esp_mqtt_client_publish(g_mqtt_client, g_topic_up, buffer, 0, QOS1, 0);
+			}
+			led_blink();
             g_mi_band_rssi = 0;
             // ESP_LOGI(TAG, "****************End of one scan cycle.*****************");
             /*
@@ -1232,8 +1255,13 @@ void task_lock_list_maintain(void *param)
     }
 
     // test mi band 6
-    uint8_t tmp_bda[6] = {0xc2, 0x92, 0x7f, 0xb7, 0xe1, 0xf8};
+	// 4c:f2:02:bc:48:85
+	// 85:48:bc:02:f2:4c
+	// C7:6A:CD:04:1A:80
+    uint8_t tmp_bda[6] = {0xc7, 0x6a, 0xcd, 0x04, 0x1a, 0x80};
+    uint8_t tmp_bda2[6] = {0x4c, 0xf2, 0x02, 0xbc, 0x48, 0x85};
     esp_ble_gap_update_whitelist(true, tmp_bda, BLE_WL_ADDR_TYPE_PUBLIC);
+    esp_ble_gap_update_whitelist(true, tmp_bda2, BLE_WL_ADDR_TYPE_PUBLIC);
 
     ble_empty_cmd_data();
     
@@ -1525,16 +1553,16 @@ void app_main(void)
     // nvs init
     nvs_init();
     //rmt init
-    air_conditioner_init();
+    // air_conditioner_init();
     // check firmware_version
     check_firmware_version();
     //ssd1306 init
-    xTaskCreate(display_init, "task_display", 1024 * 10, NULL, 5, NULL);
+    // xTaskCreate(display_init, "task_display", 1024 * 10, NULL, 5, NULL);
     // button init
-    xTaskCreate(key_trigger, "key_trigger", 1024 * 2, NULL, 10, NULL);
+    // xTaskCreate(key_trigger, "key_trigger", 1024 * 2, NULL, 10, NULL);
     // led init
     led_init();
-    xTaskCreate(led_flicker, "task_led", 1024 * 10, NULL, 5, NULL);
+    // xTaskCreate(led_flicker, "task_led", 1024 * 10, NULL, 5, NULL);
     // SmartConfig Initialize
     wifi_smartconfig_check();
     // Network Config Initialize

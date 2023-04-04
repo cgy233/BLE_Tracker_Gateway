@@ -16,8 +16,12 @@
 // LUO
 #define GPIO_LED_POWERED_NUM 32
 #define GPIO_LED_NUM 33
+#define GPIO_BLINK_LED_NUM 2
 
 void led_init();
+void led_on();
+void led_off();
 void led_flicker();
+void led_blink();
 
 #endif

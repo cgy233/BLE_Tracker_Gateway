@@ -3,8 +3,8 @@
 
 /* 宏定义WiFi更新标识码、WiFi名称和密码 */
 #define MY_WIFI_UPDATE  4096        
-#define MY_WIFI_SSID    "jnwap"
-#define MY_WIFI_PASSWD  "jianeng123"
+#define MY_WIFI_SSID    "EthanHome"
+#define MY_WIFI_PASSWD  "cgy233.."
 
 /* 宏定义WiFi连接事件标志位、连接失败标志位及智能配网标志位 */
 #define WIFI_CONNECTED_BIT  BIT0

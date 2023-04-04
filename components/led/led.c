@@ -23,7 +23,7 @@ void led_init(void)
     gpio_config_t gpio_config_structure;
 
     /* 初始化gpio配置结构体*/ 
-    gpio_config_structure.pin_bit_mask = (1ULL << GPIO_LED_NUM);/* 选择gpio2 */
+    gpio_config_structure.pin_bit_mask = (1ULL << GPIO_BLINK_LED_NUM);/* 选择gpio2 */
     gpio_config_structure.mode = GPIO_MODE_OUTPUT;              /* 输出模式 */
     gpio_config_structure.pull_up_en = 0;                       /* 不上拉 */
     gpio_config_structure.pull_down_en = 0;                     /* 不下拉 */
@@ -31,16 +31,41 @@ void led_init(void)
     /* 根据设定参数初始化并使能 */  
 	gpio_config(&gpio_config_structure);
 
-    gpio_config_structure.pin_bit_mask = (1ULL << GPIO_LED_POWERED_NUM);/* 选择gpio2 */
-    gpio_config_structure.mode = GPIO_MODE_OUTPUT;              /* 输出模式 */
-    gpio_config_structure.pull_up_en = 0;                       /* 不上拉 */
-    gpio_config_structure.pull_down_en = 0;                     /* 不下拉 */
-    gpio_config_structure.intr_type = GPIO_PIN_INTR_DISABLE;    /* 禁止中断 */ 
-    /* 根据设定参数初始化并使能 */  
-	gpio_config(&gpio_config_structure);
+    // gpio_config_structure.pin_bit_mask = (1ULL << GPIO_LED_POWERED_NUM);/* 选择gpio2 */
+    // gpio_config_structure.mode = GPIO_MODE_OUTPUT;              /* 输出模式 */
+    // gpio_config_structure.pull_up_en = 0;                       /* 不上拉 */
+    // gpio_config_structure.pull_down_en = 0;                     /* 不下拉 */
+    // gpio_config_structure.intr_type = GPIO_PIN_INTR_DISABLE;    /* 禁止中断 */ 
+    // /* 根据设定参数初始化并使能 */  
+	// gpio_config(&gpio_config_structure);
 
-    gpio_set_level(GPIO_LED_POWERED_NUM, 1);        /* 红灯默认熄灭 */
-    gpio_set_level(GPIO_LED_NUM, 0);        /* 蓝灯默认熄灭 */
+    // gpio_set_level(GPIO_LED_POWERED_NUM, 1);        /* 红灯默认点亮 */
+    gpio_set_level(GPIO_BLINK_LED_NUM, 0);        /* 蓝灯默认熄灭 */
+	
+}
+
+void led_on()
+{
+    gpio_set_level(GPIO_BLINK_LED_NUM, 1);        
+}
+
+void led_off()
+{
+    gpio_set_level(GPIO_BLINK_LED_NUM, 0);        
+}
+
+
+
+void led_blink()
+{
+	int count = 10;
+	while(count--)
+	{
+		led_off();
+		vTaskDelay(pdMS_TO_TICKS(50));
+		led_on();
+		vTaskDelay(pdMS_TO_TICKS(50));
+	}
 	
 }
 
