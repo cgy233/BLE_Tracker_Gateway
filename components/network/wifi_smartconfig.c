@@ -9,7 +9,9 @@
 #include "freertos/event_groups.h"
 #include "wifi_smartconfig.h"
 
+#ifndef TAG
 #define TAG "WIFI"
+#endif
 
 
 extern uint8_t g_led_flag;

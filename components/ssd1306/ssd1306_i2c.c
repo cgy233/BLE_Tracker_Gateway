@@ -8,7 +8,9 @@
 
 #include "ssd1306.h"
 
+#ifndef TAG
 #define tag "SSD1306"
+#endif
 
 #define I2C_NUM I2C_NUM_0
 //#define I2C_NUM I2C_NUM_1

@@ -9,7 +9,10 @@
 
 #include "ssd1306.h"
 
+#ifndef TAG
 #define TAG "SSD1306"
+#endif
+
 
 #ifdef CONFIG_IDF_TARGET_ESP32
 #define LCD_HOST HSPI_HOST

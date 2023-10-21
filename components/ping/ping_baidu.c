@@ -18,7 +18,9 @@
 #include "argtable3/argtable3.h"
 #include "ping/ping_sock.h"
 
+#ifndef TAG
 #define TAG "PING"
+#endif
 
 static void cmd_ping_on_ping_success(esp_ping_handle_t hdl, void *args)
 {

@@ -8,7 +8,9 @@
 #include "ssd1306.h"
 #include "font8x8_basic.h"
 
+#ifndef TAG
 #define TAG "SSD1306"
+#endif
 
 #define PACK8 __attribute__((aligned( __alignof__( uint8_t ) ), packed ))
 

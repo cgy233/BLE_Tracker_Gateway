@@ -21,7 +21,9 @@
 #include "errno.h"
 #include "ota.h"
 
+#ifndef TAG
 #define TAG "OTA"
+#endif
 
 #define XV_GW_OTA 2
 #define QOS1 1
