@@ -1,2 +1,2 @@
-idf_component_register(SRCS "display.c" "app_main.c" "air_conditioner.c"
+idf_component_register(SRCS "app_main.c" "display.c"
                     INCLUDE_DIRS ".")

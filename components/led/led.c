@@ -58,7 +58,7 @@ void led_off()
 
 void led_blink()
 {
-	int count = 10;
+	int count = 3;
 	while(count--)
 	{
 		led_off();

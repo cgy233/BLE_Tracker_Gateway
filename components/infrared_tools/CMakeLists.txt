@@ -1,4 +1,4 @@
-set(component_srcs "src/ir_builder_rmt_nec.c"
+set(component_srcs "src/ir_builder_rmt_nec.c" "src/air_conditioner.c"
                    )
 
 idf_component_register(SRCS "${component_srcs}"

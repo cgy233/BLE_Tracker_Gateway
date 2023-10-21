@@ -74,7 +74,7 @@
 #include "sntp_tools.h"
 
 
-#define TAG "XV_SPUER_GW"
+#define TAG "SPUER_GW"
 #define REMOTE_SERVICE_UUID 0xFFF0
 #define REMOTE_NOTIFY_CHAR_UUID 0xFFF6
 #define PROFILE_NUM 1
@@ -159,6 +159,85 @@ typedef struct {
     bool            set_dev;
 }ble_device;
 
+#include <stdio.h>
+#include <string.h>
+
+// 定义最大设备数量
+#define MAX_DEVICES 10
+
+// 结构体定义：ble_device_t
+struct ble_device_t {
+    char name[20];    // 字符串数组，用于存储设备名称，最大长度为20个字符（包括终止符）。
+	uint8_t mac_address[6];
+    uint8_t confidence;   // 整数类型，用于存储设备信任度或置信度。
+	int8_t rssi;
+};
+
+// 全局结构体：ble_devices_state_t
+struct ble_devices_state_t {
+    int num_devices; // 存储当前蓝牙设备的数量
+    struct ble_device_t devices[MAX_DEVICES]; // 使用固定大小的数组来存储多个蓝牙设备。
+};
+struct ble_devices_state_t my_ble_devices_state;
+
+void init_ble_devices_state(struct ble_devices_state_t* state);
+int add_ble_device(struct ble_devices_state_t* state, const char* name, const uint8_t* mac_address, int confidence);
+
+// 初始化蓝牙设备信息结构体
+void init_ble_devices_state(struct ble_devices_state_t* state) {
+    // 初始化设备数量为0
+    state->num_devices = 0;
+}
+
+int ble_devices_init() {
+    init_ble_devices_state(&my_ble_devices_state);
+
+	// 添加设备信息
+    uint8_t mac_address1[6] = {0xC7, 0x6A, 0xCD, 0x04, 0x1A, 0x80};
+    uint8_t mac_address2[6] = {0xD0, 0x62, 0x2C, 0xCD, 0x8A, 0x94};
+
+    int result1 = add_ble_device(&my_ble_devices_state, "Mi Smart Band 6", mac_address1, 0);
+    int result2 = add_ble_device(&my_ble_devices_state, "Mi Smart Band 8", mac_address2, 0);
+
+
+    if (result1 == 0) {
+        ESP_LOGI(TAG, "Device 1 added successfully!");
+    } else {
+        ESP_LOGI(TAG, "Failed to add Device 1! Error code: %d", result1);
+    }
+
+    if (result2 == 0) {
+        ESP_LOGI(TAG, "Device 2 added successfully!\n");
+    } else {
+        ESP_LOGI(TAG, "Failed to add Device 2! Error code: %d", result2);
+    }
+
+    return 0;
+}
+
+
+// 添加蓝牙设备信息
+int add_ble_device(struct ble_devices_state_t* state, const char* name, const uint8_t* mac_address, int confidence) {
+    // 检查是否已达到最大设备数量
+    if (state->num_devices >= MAX_DEVICES) {
+        return -1; // 表示添加失败，超过了最大设备数量
+    }
+
+    // 检查名称的长度是否超过限制
+    if (strlen(name) >= 20) {
+        return -2; // 表示添加失败，名称长度超过限制
+    }
+
+    // 将设备信息添加到结构体数组中
+    strcpy(state->devices[state->num_devices].name, name);
+    memcpy(state->devices[state->num_devices].mac_address, mac_address, sizeof(int) * 6);
+    state->devices[state->num_devices].confidence = confidence;
+
+    // 增加设备数量
+    state->num_devices++;
+
+    return 0; // 表示添加成功
+}
 /**
  * @description: Initializes the data state of the lock
  * @param {ble_device} *device
@@ -648,6 +727,22 @@ static void mqtt_app_start(char* mac)
     esp_mqtt_client_start(g_mqtt_client);
 }
 
+void mqtt_send_device_info(char *name, uint8_t confidence, int8_t rssi)
+{
+
+	// UPDATE SUB LOCK LIST/
+	if(json_start())
+	{
+		json_put_string("name", name);
+		json_split();
+		json_put_int("confidence", confidence);
+
+		json_end();
+		char *buffer = json_buffer();
+		esp_mqtt_client_publish(g_mqtt_client, g_topic_up, buffer, 0, QOS1, 0);
+	}
+
+}
 
 static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param)
 {
@@ -973,35 +1068,22 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
             // esp_log_buffer_char(TAG, adv_name, adv_name_len);
             if (adv_name != NULL)
             {
+				for (uint8_t i = 0; i < MAX_DEVICES; i++)
+				{
+					if (strlen(my_ble_devices_state.devices[i].name) == adv_name_len && strncmp((char *)adv_name, my_ble_devices_state.devices[i].name, adv_name_len) == 0) {
+						my_ble_devices_state.devices[i].rssi = scan_result->scan_rst.rssi < 0 ? ~(scan_result->scan_rst.rssi) : 0;
+						my_ble_devices_state.devices[i].confidence = my_ble_devices_state.devices[i].rssi > 0 ? 100 : 0;
+						mqtt_send_device_info(my_ble_devices_state.devices[i].name, my_ble_devices_state.devices[i].confidence, my_ble_devices_state.devices[i].rssi);
+						ESP_LOGI(TAG, "Device name: %s,Confidence: %d, RSSI: %d", my_ble_devices_state.devices[i].name, my_ble_devices_state.devices[i].confidence, my_ble_devices_state.devices[0].rssi);
+					}
+						
+				}
                 g_mi_band_rssi = scan_result->scan_rst.rssi;
                 if (g_mi_band_rssi < 0)
                 {
                     g_mi_band_rssi = ~g_mi_band_rssi;
                 }
-                // sprintf(rssi_str, " %d", g_mi_band_rssi);
-                // ssd1306_display_text_x3(&dev, 5, rssi_str, 5, false);
-                char band[] = "Mi Smart Band 6";
-				int confid = 0;
-                ESP_LOGD(TAG, "Device name: %s, RSSI: %d", band, g_mi_band_rssi);
-				if (g_mi_band_rssi < 90 && g_mi_band_rssi > 0)
-				{
-					confid = 100;
-				}
-				else
-				{
-					confid = 0;
-				}
-				// UPDATE SUB LOCK LIST/
-				if(json_start())
-				{
-					json_put_string("device_name", band);
-					json_split();
-					json_put_int("confidence", confid);
-					
-					json_end();
-					char *buffer = json_buffer();
-					esp_mqtt_client_publish(g_mqtt_client, g_topic_up, buffer, 0, QOS1, 0);
-				}
+
 
             }
 
@@ -1254,14 +1336,9 @@ void task_lock_list_maintain(void *param)
         memset(g_buffer_list[i], 0, MSG_MAX_BUFFER);
     }
 
-    // test mi band 6
-	// 4c:f2:02:bc:48:85
-	// 85:48:bc:02:f2:4c
-	// C7:6A:CD:04:1A:80
-    uint8_t tmp_bda[6] = {0xc7, 0x6a, 0xcd, 0x04, 0x1a, 0x80};
-    uint8_t tmp_bda2[6] = {0x4c, 0xf2, 0x02, 0xbc, 0x48, 0x85};
-    esp_ble_gap_update_whitelist(true, tmp_bda, BLE_WL_ADDR_TYPE_PUBLIC);
-    esp_ble_gap_update_whitelist(true, tmp_bda2, BLE_WL_ADDR_TYPE_PUBLIC);
+    // TEST MI BAND 6
+    esp_ble_gap_update_whitelist(true, (uint8_t *)my_ble_devices_state.devices[0].mac_address, BLE_WL_ADDR_TYPE_PUBLIC);
+    esp_ble_gap_update_whitelist(true, (uint8_t *)my_ble_devices_state.devices[1].mac_address, BLE_WL_ADDR_TYPE_PUBLIC);
 
     ble_empty_cmd_data();
     
@@ -1576,6 +1653,8 @@ void app_main(void)
     mqtt_begin();
     // ble init
     BLE_init();
+	//ble devices init
+	ble_devices_init();
     // Hearbeat lock data report check 
     xTaskCreate(task_lock_list_maintain, "task_lock_list_maintain", 1024 * 10, NULL, 5, NULL);
     // Soid humidity reader
