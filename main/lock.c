@@ -12,7 +12,7 @@
 #include "json.h"
 
 extern ble_device g_device_list[XV_LOCK_LIST_LENGTH];
-extern char g_buffer_set[MSG_MAX_BUFFER];
+char g_buffer_set[MSG_MAX_BUFFER] = {0};
 extern msg_base *g_msg_cmd;
 
 extern struct ble_devices_state_t my_ble_devices_state;

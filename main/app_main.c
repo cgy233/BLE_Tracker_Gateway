@@ -19,46 +19,17 @@
 #include "nvs.h"
 #include "nvs_flash.h"
 
-#include <sys/time.h>
-#include <time.h>
-
 #include "esp_bt.h"
-#include "esp32/rom/ets_sys.h"
-#include "esp_gap_ble_api.h"
-#include "esp_gatt_defs.h"
 #include "esp_bt_main.h"
 #include "esp_gatt_common_api.h"
 #include "esp_log.h"
-#include "esp_system.h"
-#include "esp_event.h"
 #include "esp_task_wdt.h"
-#include "driver/adc.h"
 #include "esp_adc_cal.h"
 
-#include "esp_http_client.h"
-#include "esp_flash_partitions.h"
-#include "esp_partition.h"
-
-#include "lwip/sockets.h"
-#include "lwip/dns.h"
-#include "lwip/netdb.h"
-
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/semphr.h"
-#include "freertos/queue.h"
-#include "freertos/timers.h"
-#include "freertos/event_groups.h"
-
 #include "mqtt_client.h"
-#include "mbedtls/aes.h"
 
 #include "soc/rtc_wdt.h"
-#include "msg_list.h"
-#include <math.h>
 #include "json.h"
-#include "driver/gpio.h"
-#include "errno.h"
 #include "ssd1306.h"
 
 #include "led.h"
@@ -103,9 +74,7 @@ short g_scan_max = 10;
 bool ble_is_connected = false;
 
 char g_buffer_list[MSG_MAX_COUNT][MSG_MAX_BUFFER];
-char g_buffer_set[MSG_MAX_BUFFER] = {0};
 char g_buffer_cmd[MSG_MAX_BUFFER] = {0};
-int g_msg_last = 0;
 
 esp_mqtt_client_handle_t g_mqtt_client; // MQTT client handle
 
@@ -137,7 +106,6 @@ AC_INFO ac_current_info = {
  * @param {msg_base} *msg
  * @return {*}
  */
-
 static void print_char_val_type(esp_adc_cal_value_t val_type)
 {
 	if (val_type == ESP_ADC_CAL_VAL_EFUSE_TP)
