@@ -1,5 +1,5 @@
-#ifndef __LOCK_H__
-#define __LOCK_H__
+#ifndef __BLE_MANAGER_H__
+#define __BLE_MANAGER_H__
 
 #include "msg_list.h"
 
@@ -78,8 +78,10 @@ void check_lock_data();
 void ble_device_init(ble_device *device, char *sn);
 void ble_devices_init();
 void ble_device_set_dev(ble_device *device, esp_ble_gap_cb_param_t *dev);
-bool ble_device_check(ble_device *device, uint8_t *sn);
 void ble_empty_cmd_data();
+void BLE_init();
+void ble_scan();
+bool ble_device_check(ble_device *device, uint8_t *sn);
 int add_ble_device(struct ble_devices_state_t* state, const char* name, const uint8_t* mac_address, int confidence);
 
 /* Declare static functions */

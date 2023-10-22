@@ -21,6 +21,10 @@
 #include "wifi_smartconfig.h"
 #include "ethernet.h"
 
+#ifndef TAG
+#define TAG "XV_SPUER_GW"
+#endif
+
 extern uint8_t ethernet_connect_ok;
 
 static void eth_event_handler(void *arg, esp_event_base_t event_base,

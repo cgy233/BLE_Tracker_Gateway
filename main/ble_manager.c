@@ -1,15 +1,19 @@
+#include "esp_bt.h"
+#include "esp_bt_main.h"
+#include "esp_gatt_common_api.h"
 #include "esp_log.h"
 #include "esp_system.h"
 #include "esp_event.h"
 #include "esp_task_wdt.h"
-#include "mqtt_client.h"
 
 #include "freertos/FreeRTOS.h"
 #include "soc/rtc_wdt.h"
 
-#include "lock.h"
+#include "mqtt.h"
+#include "ble_manager.h"
 #include "led.h"
 #include "json.h"
+
 
 extern ble_device g_device_list[XV_LOCK_LIST_LENGTH];
 char g_buffer_set[MSG_MAX_BUFFER] = {0};
@@ -17,7 +21,7 @@ extern msg_base *g_msg_cmd;
 
 extern struct ble_devices_state_t my_ble_devices_state;
 
-extern esp_ble_gattc_cb_param_t *p_data_gb;
+esp_ble_gattc_cb_param_t *p_data_gb;
 extern bool g_ble_scan_param_complete;
 extern bool g_ble_scaning;
 extern uint8_t g_ble_scan_count;
@@ -71,6 +75,8 @@ struct gattc_profile_inst gl_profile_tab[PROFILE_NUM] = {
 		.gattc_if = ESP_GATT_IF_NONE, /* Not get the gatt_if, so initial is ESP_GATT_IF_NONE */
 	},
 };
+
+static uint32_t duration = 15;																							  // Scanning period
 
 // 初始化蓝牙设备信息结构体
 void init_ble_devices_state(struct ble_devices_state_t *state)
@@ -712,4 +718,133 @@ void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc
 	default:
 		break;
 	}
+}
+
+// Wait BLE data timer
+esp_ble_gattc_cb_param_t *p_data_gb;
+uint8_t ble_timeout_flag = 1;
+extern esp_gatt_if_t gattc_if_gb;
+
+/**
+ * @description: Connect timer, connect timeout, disconnect Bluetooth, and clear the global command, BLE connect
+ * @param {void} *arg
+ * @return {*}
+ */
+void BLE_timeout_timer(void *arg)
+{
+	if (ble_timeout_flag)
+	{
+		if (0 != g_msg_cmd)
+		{
+			ble_empty_cmd_data();
+		}
+		ESP_LOGI(TAG, "Ble data wait timeout.");
+		ble_is_connected = false;
+		esp_ble_gattc_close(gattc_if_gb, gl_profile_tab[PROFILE_A_APP_ID].conn_id);
+		esp_ble_gap_disconnect(p_data_gb->connect.remote_bda);
+	}
+	else
+	{
+		ESP_LOGI(TAG, "Ble data success.");
+		ble_timeout_flag = 1;
+	}
+}
+
+void ble_scan()
+{
+	ble_is_connected = false;
+	esp_ble_gattc_close(gattc_if_gb, gl_profile_tab[PROFILE_A_APP_ID].conn_id);
+	esp_ble_gap_disconnect(p_data_gb->connect.remote_bda);
+	// ESP_LOGI(TAG, "begin esp_ble_gap_start_scanning");
+	if (!g_ble_scaning)
+	{
+		// ESP_LOGI(TAG, "esp_ble_gap_start_scanning...");
+		for (int i = 0; i < XV_LOCK_LIST_LENGTH; i++)
+		{
+			g_device_list[i].checked = 0;
+			g_device_list[i].rssi = 0;
+		}
+		esp_ble_gap_start_scanning(duration);
+	}
+	g_ble_scaning = true;
+}
+
+// BLE conect timer config
+esp_timer_handle_t timer_once_hanle = 0;
+esp_timer_create_args_t test_once_arg = {
+	.callback = &BLE_timeout_timer, // callback
+	.arg = NULL,					// no args
+	.name = "BLETIMER"				// timer name
+};
+
+void BLE_init()
+{
+	ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
+
+	esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
+	esp_err_t ret = esp_bt_controller_init(&bt_cfg);
+	if (ret)
+	{
+		ESP_LOGE(TAG, "%s initialize controller failed: %s", __func__, esp_err_to_name(ret));
+		return;
+	}
+	ret = esp_bt_controller_enable(ESP_BT_MODE_BLE);
+	if (ret)
+	{
+		ESP_LOGE(TAG, "%s enable controller failed: %s", __func__, esp_err_to_name(ret));
+		return;
+	}
+
+	ret = esp_bluedroid_init();
+	if (ret)
+	{
+		ESP_LOGE(TAG, "%s init bluetooth failed: %s", __func__, esp_err_to_name(ret));
+		return;
+	}
+
+	ret = esp_bluedroid_enable();
+	if (ret)
+	{
+		ESP_LOGE(TAG, "%s enable bluetooth failed: %s", __func__, esp_err_to_name(ret));
+		return;
+	}
+	// BT TX POWER SETTIN
+	ret = esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, ESP_PWR_LVL_P9);
+	if (ret)
+	{
+		ESP_LOGE(TAG, "%s Unable to set BLE Tx power level", __func__);
+		return;
+	}
+	ESP_LOGI(TAG, "%s Successfully set BLE Tx power level", __func__);
+
+	// register the  callback function to the gap module
+	ret = esp_ble_gap_register_callback(esp_gap_cb);
+	if (ret)
+	{
+		ESP_LOGE(TAG, "%s gap register failed, error code = %x", __func__, ret);
+		return;
+	}
+
+	// register the callback function to the gattc module
+	ret = esp_ble_gattc_register_callback(esp_gattc_cb);
+	if (ret)
+	{
+		ESP_LOGE(TAG, "%s gattc register failed, error code = %x", __func__, ret);
+		return;
+	}
+
+	ret = esp_ble_gattc_app_register(PROFILE_A_APP_ID);
+	if (ret)
+	{
+		ESP_LOGE(TAG, "%s gattc app register failed, error code = %x", __func__, ret);
+	}
+	esp_err_t local_mtu_ret = esp_ble_gatt_set_local_mtu(128);
+	if (local_mtu_ret)
+	{
+		ESP_LOGE(TAG, "set local  MTU failed, error code = %x", local_mtu_ret);
+	}
+
+	esp_err_t err = esp_timer_create(&test_once_arg, &timer_once_hanle);
+
+	ESP_LOGI(TAG, "Bluetimeout timer create %s", err == ESP_OK ? "ok." : "failed.");
 }
