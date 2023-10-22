@@ -56,15 +56,14 @@ void led_off()
 
 
 
-void led_blink()
+void led_blink(uint8_t count)
 {
-	int count = 3;
 	while(count--)
 	{
-		led_off();
-		vTaskDelay(pdMS_TO_TICKS(50));
 		led_on();
-		vTaskDelay(pdMS_TO_TICKS(50));
+		vTaskDelay(pdMS_TO_TICKS(200));
+		led_off();
+		vTaskDelay(pdMS_TO_TICKS(200));
 	}
 	
 }

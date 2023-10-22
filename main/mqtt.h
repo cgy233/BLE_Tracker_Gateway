@@ -16,6 +16,6 @@ void mqtt_send_device_info(char *name, uint8_t confidence, int8_t rssi);
 void xv_mqtt_event_hanler(esp_mqtt_event_handle_t event);
 void log_error_if_nonzero(const char *message, int error_code);
 void mqtt_app_start(char *mac);
-void mqtt_begin();
+void mqtt_init();
 
 #endif

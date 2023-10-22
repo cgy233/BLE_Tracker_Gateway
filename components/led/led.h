@@ -22,6 +22,6 @@ void led_init();
 void led_on();
 void led_off();
 void led_flicker();
-void led_blink();
+void led_blink(uint8_t count);
 
 #endif

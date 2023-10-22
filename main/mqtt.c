@@ -6,6 +6,7 @@
 #include "freertos/FreeRTOS.h"
 #include "soc/rtc_wdt.h"
 
+#include "sntp_tools.h"
 #include "mqtt.h"
 #include "json.h"
 #include "led.h"
@@ -26,11 +27,17 @@ void mqtt_send_device_info(char *name, uint8_t confidence, int8_t rssi)
 		json_put_string("name", name);
 		json_split();
 		json_put_int("confidence", confidence);
+		json_split();
+		json_put_int("rssi", rssi);
+		// json_split();
+		// json_put_string("timestamp", nowTime());
 
 		json_end();
 		char *buffer = json_buffer();
 		esp_mqtt_client_publish(g_mqtt_client, g_topic_up, buffer, 0, QOS1, 0);
+		ESP_LOGI("MQTT", "%s", buffer);
 	}
+	led_blink(1);
 }
 
 /**
@@ -143,7 +150,7 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 	{
 	case MQTT_EVENT_CONNECTED:
 		g_led_flag = 1;
-		led_on();
+		led_blink(2);
 		ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
 		vTaskDelay(2000 / portTICK_RATE_MS);
 
@@ -252,7 +259,7 @@ void mqtt_app_start(char *mac)
 	esp_mqtt_client_start(g_mqtt_client);
 }
 
-void mqtt_begin()
+void mqtt_init()
 {
 	// APP INIT
 	uint8_t efuse_mac[6] = {0};

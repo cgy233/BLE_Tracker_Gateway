@@ -16,6 +16,10 @@
 //---------------------------------------
 typedef unsigned char byte;
 
+// 搜不到几次算离开
+#define LEAVE_OFFLINE_COUNT		5
+
+
 // MQTT QOS
 #define QOS0 0
 #define QOS1 1
@@ -38,6 +42,8 @@ struct ble_device_t {
     char name[20];    // 字符串数组，用于存储设备名称，最大长度为20个字符（包括终止符）。
 	uint8_t mac_address[6];
     uint8_t confidence;   // 整数类型，用于存储设备信任度或置信度。
+	uint8_t checked;
+	uint8_t no_checked;
 	int8_t rssi;
 };
 
@@ -79,10 +85,10 @@ void ble_device_init(ble_device *device, char *sn);
 void ble_devices_init();
 void ble_device_set_dev(ble_device *device, esp_ble_gap_cb_param_t *dev);
 void ble_empty_cmd_data();
-void BLE_init();
+void ble_init();
 void ble_scan();
 bool ble_device_check(ble_device *device, uint8_t *sn);
-int add_ble_device(struct ble_devices_state_t* state, const char* name, const uint8_t* mac_address, int confidence);
+int add_ble_device(struct ble_devices_state_t* state, const char* name, const uint8_t* mac_address);
 
 /* Declare static functions */
 void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);

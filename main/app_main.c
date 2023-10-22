@@ -55,8 +55,6 @@ static const adc_unit_t unit = ADC_UNIT_1;
 
 SSD1306_t dev;
 
-int g_mi_band_rssi = 0;
-
 uint8_t g_version; // Firmware version
 
 uint8_t g_led_flag = 0;			 // led status flag
@@ -174,22 +172,10 @@ void soid_humidity()
 
 void send_heart_beast()
 {
-	// char band[] = "Mi Smart Band 6";
-	// ESP_LOGI(TAG, "Device name: %s, RSSI: %d", band, g_mi_band_rssi);
-	// // UPDATE SUB LOCK LIST/
-	// if(json_start())
-	// {
-	//     json_put_string("device_name", band);
-	//     json_split();
-	//     json_put_int("rssi", g_mi_band_rssi);
-
-	//     json_end();
-	//     char *buffer = json_buffer();
-	//     esp_mqtt_client_publish(g_mqtt_client, g_topic_up, buffer, 0, QOS1, 0);
-	// }
-	// test ping baidu
-	// ping_baidu();
-
+	for (uint8_t i = 0; i < my_ble_devices_state.num_devices; i++)
+	{
+		mqtt_send_device_info(my_ble_devices_state.devices[i].name, my_ble_devices_state.devices[i].confidence, my_ble_devices_state.devices[i].rssi);
+	}
 	// feed dog
 	esp_task_wdt_reset();
 	rtc_wdt_feed();
@@ -213,7 +199,6 @@ void task_lock_list_maintain(void *param)
 
 	// TEST MI BAND 6
 	esp_ble_gap_update_whitelist(true, (uint8_t *)my_ble_devices_state.devices[0].mac_address, BLE_WL_ADDR_TYPE_PUBLIC);
-	esp_ble_gap_update_whitelist(true, (uint8_t *)my_ble_devices_state.devices[1].mac_address, BLE_WL_ADDR_TYPE_PUBLIC);
 
 	ble_empty_cmd_data();
 
@@ -420,13 +405,13 @@ void app_main(void)
 	// network_config_init();
 	wifi_init_sta();
 	// sntp
-	sntp_start();
+	// sntp_start();
 	// RTC watch dog initialization
 	rtc_wdt_init();
 	// show mac and start mqtt
-	mqtt_begin();
+	mqtt_init();
 	// ble init
-	BLE_init();
+	ble_init();
 	// ble devices init
 	ble_devices_init();
 	// Hearbeat lock data report check

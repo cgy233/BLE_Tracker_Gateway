@@ -27,7 +27,7 @@ extern bool g_ble_scaning;
 extern uint8_t g_ble_scan_count;
 extern short g_scan_max;
 extern bool ble_is_connected;
-extern int g_mi_band_rssi;
+int g_mi_band_rssi;
 extern esp_mqtt_client_handle_t g_mqtt_client; // MQTT client handle
 extern char g_topic_up[32];
 
@@ -121,7 +121,7 @@ void check_lock_data()
 }
 
 // 添加蓝牙设备信息
-int add_ble_device(struct ble_devices_state_t *state, const char *name, const uint8_t *mac_address, int confidence)
+int add_ble_device(struct ble_devices_state_t *state, const char *name, const uint8_t *mac_address)
 {
 	// 检查是否已达到最大设备数量
 	if (state->num_devices >= MAX_DEVICES)
@@ -138,7 +138,9 @@ int add_ble_device(struct ble_devices_state_t *state, const char *name, const ui
 	// 将设备信息添加到结构体数组中
 	strcpy(state->devices[state->num_devices].name, name);
 	memcpy(state->devices[state->num_devices].mac_address, mac_address, sizeof(int) * 6);
-	state->devices[state->num_devices].confidence = confidence;
+	state->devices[state->num_devices].confidence = 0;
+
+	state->devices[state->num_devices].checked = 0;
 
 	// 增加设备数量
 	state->num_devices++;
@@ -181,10 +183,10 @@ void ble_devices_init()
 
 	// 添加设备信息
 	uint8_t mac_address1[6] = {0xC7, 0x6A, 0xCD, 0x04, 0x1A, 0x80};
-	uint8_t mac_address2[6] = {0xD0, 0x62, 0x2C, 0xCD, 0x8A, 0x94};
+	// uint8_t mac_address2[6] = {0xD0, 0x62, 0x2C, 0xCD, 0x8A, 0x94};
 
-	int result1 = add_ble_device(&my_ble_devices_state, "Mi Smart Band 6", mac_address1, 0);
-	int result2 = add_ble_device(&my_ble_devices_state, "Mi Smart Band 8", mac_address2, 0);
+	int result1 = add_ble_device(&my_ble_devices_state, "Mi Smart Band 6", mac_address1);
+	// int result2 = add_ble_device(&my_ble_devices_state, "Mi Smart Band 8", mac_address2, 0);
 
 	if (result1 == 0)
 	{
@@ -195,14 +197,14 @@ void ble_devices_init()
 		ESP_LOGI(TAG, "Failed to add Device 1! Error code: %d", result1);
 	}
 
-	if (result2 == 0)
-	{
-		ESP_LOGI(TAG, "Device 2 added successfully!\n");
-	}
-	else
-	{
-		ESP_LOGI(TAG, "Failed to add Device 2! Error code: %d", result2);
-	}
+	// if (result2 == 0)
+	// {
+	// 	ESP_LOGI(TAG, "Device 2 added successfully!\n");
+	// }
+	// else
+	// {
+	// 	ESP_LOGI(TAG, "Failed to add Device 2! Error code: %d", result2);
+	// }
 }
 
 void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param)
@@ -252,18 +254,25 @@ void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param)
 				{
 					if (strlen(my_ble_devices_state.devices[i].name) == adv_name_len && strncmp((char *)adv_name, my_ble_devices_state.devices[i].name, adv_name_len) == 0)
 					{
+						// my_ble_devices_state.devices[i].checked++;
 						my_ble_devices_state.devices[i].rssi = scan_result->scan_rst.rssi < 0 ? ~(scan_result->scan_rst.rssi) : 0;
-						my_ble_devices_state.devices[i].confidence = my_ble_devices_state.devices[i].rssi > 0 ? 100 : 0;
+						if (my_ble_devices_state.devices[i].rssi < 95)
+						{
+							my_ble_devices_state.devices[i].checked++;
+						}
+						// uint8_t confidence = my_ble_devices_state.devices[i].rssi < 60 ? 100 : 0;
+						// if (my_ble_devices_state.devices[i].confidence != confidence)
+						// {
+						// 	my_ble_devices_state.devices[i].confidence = confidence;
+						// 	mqtt_send_device_info(my_ble_devices_state.devices[i].name, my_ble_devices_state.devices[i].confidence, my_ble_devices_state.devices[i].rssi);
+
+						// }
 
 						// mqtt_send_device_info(my_ble_devices_state.devices[i].name, my_ble_devices_state.devices[i].confidence, my_ble_devices_state.devices[i].rssi);
-						ESP_LOGI(TAG, "Device name: %s,Confidence: %d, RSSI: %d", my_ble_devices_state.devices[i].name, my_ble_devices_state.devices[i].confidence, my_ble_devices_state.devices[0].rssi);
+						// ESP_LOGI(TAG, "Device name: %s,Confidence: %d, RSSI: %d", my_ble_devices_state.devices[i].name, my_ble_devices_state.devices[i].confidence, my_ble_devices_state.devices[0].rssi);
 					}
 				}
-				g_mi_band_rssi = scan_result->scan_rst.rssi;
-				if (g_mi_band_rssi < 0)
-				{
-					g_mi_band_rssi = ~g_mi_band_rssi;
-				}
+				g_mi_band_rssi = ~scan_result->scan_rst.rssi;
 			}
 
 			if (adv_name != NULL && memcmp(adv_name, "TM", 2) == 0)
@@ -280,7 +289,7 @@ void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param)
 					if (g_device_list[i].sn[0] && ble_device_check(&g_device_list[i], adv_name))
 					{
 						ble_device_set_dev(&g_device_list[i], scan_result);
-						ESP_LOGI(TAG, "Device name: %s, RSSI: %d", adv_name, scan_result->scan_rst.rssi);
+						// ESP_LOGI(TAG, "Device name: %s, RSSI: %d", adv_name, scan_result->scan_rst.rssi);
 						// ESP_LOGI(TAG, "********************NowTimeStamp: %lld********************", nowTimeStamp());
 						g_device_list[i].checked = true;
 						g_device_list[i].rssi = scan_result->scan_rst.rssi;
@@ -306,37 +315,50 @@ void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param)
 		case ESP_GAP_SEARCH_INQ_CMPL_EVT:
 		{
 
+			/*
 			char band[] = "Mi Smart Band 6";
 			char rssi_str[5];
 			int confid = 0;
 			sprintf(rssi_str, "%ddBm", g_mi_band_rssi);
-			// ssd1306_display_text_x3(&dev, 5, rssi_str, 5, false);
-			ESP_LOGI(TAG, "Device name: %s, RSSI: %d", band, g_mi_band_rssi);
-			// UPDATE SUB LOCK LIST/
-			if (g_mi_band_rssi < 90 && g_mi_band_rssi > 0)
-			{
-				confid = 100;
-			}
-			else
-			{
-				confid = 0;
-			}
-			// UPDATE SUB LOCK LIST/
-			if (json_start())
-			{
-				json_put_string("device_name", band);
-				json_split();
-				json_put_int("confidence", confid);
 
-				json_end();
-				char *buffer = json_buffer();
-				esp_mqtt_client_publish(g_mqtt_client, g_topic_up, buffer, 0, QOS1, 0);
+			// ssd1306_display_text_x3(&dev, 5, rssi_str, 5, false);
+
+			if (g_mi_band_rssi)
+			{
+				confid = (g_mi_band_rssi < 90) ? 100 : 0;
 			}
-			led_blink();
+
+			ESP_LOGI(TAG, "Device name: %s, RSSI: %d", band, g_mi_band_rssi);
+			*/
+			uint8_t online = 100;
+			for (uint8_t i = 0; i < my_ble_devices_state.num_devices; i++)
+			{
+				// ESP_LOGI(TAG, "Device name: %s, SEACHED: %d", my_ble_devices_state.devices[i].name, my_ble_devices_state.devices[i].checked);
+				if(my_ble_devices_state.devices[i].checked)
+				{
+					my_ble_devices_state.devices[i].checked = 0;
+					online = 100;
+				}
+				else
+				{
+					my_ble_devices_state.devices[i].no_checked++;
+					if (my_ble_devices_state.devices[i].no_checked >= LEAVE_OFFLINE_COUNT)
+					{
+						my_ble_devices_state.devices[i].rssi = 0;
+						online = 0;
+					}
+				}
+
+				if (my_ble_devices_state.devices[i].confidence != online)
+				{
+					my_ble_devices_state.devices[i].confidence = online;
+					mqtt_send_device_info(my_ble_devices_state.devices[i].name, my_ble_devices_state.devices[i].confidence, my_ble_devices_state.devices[i].rssi);
+				}
+			}
+
 			g_mi_band_rssi = 0;
+			// UPDATE SUB LOCK LIST/
 			// ESP_LOGI(TAG, "****************End of one scan cycle.*****************");
-			/*
-			g_mi_band_rssi = 0;
 			for (int i = 0; i < XV_LOCK_LIST_LENGTH; i++)
 			{
 				if(g_device_list[i].checked)
@@ -353,8 +375,6 @@ void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param)
 					}
 				}
 			}
-			*/
-			// FEED DOG
 			esp_task_wdt_reset();
 			rtc_wdt_feed();
 			g_ble_scan_count = (g_scan_max + 1);
@@ -777,7 +797,7 @@ esp_timer_create_args_t test_once_arg = {
 	.name = "BLETIMER"				// timer name
 };
 
-void BLE_init()
+void ble_init()
 {
 	ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
 
